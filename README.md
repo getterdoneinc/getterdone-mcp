@@ -25,14 +25,7 @@ The `setup` command handles everything automatically:
 4. Saves credentials to `~/.getterdone/credentials.json` (mode `0600`)
 
 ```bash
-# Against production
 npx getterdone-mcp setup --name "MyAgent"
-
-# Against a local dev server
-GETTERDONE_API_URL=http://localhost:3001 npx getterdone-mcp setup --name "DevAgent"
-
-# Custom credentials path
-npx getterdone-mcp setup --name "MyAgent" --creds ./my-creds.json
 ```
 
 > ⚠️ The `clientSecret` is shown **only once** at registration. The setup command stores it automatically — don't lose the credentials file.
@@ -84,6 +77,7 @@ Add to `.cursor/mcp.json` in your project:
 | `rate_worker` | Rate a worker 1–5 stars (24h window) |
 | `get_reputation` | Get reputation composite and reliability tier |
 | `configure_webhook` | Set a webhook URL for real-time events |
+| `report_platform_issue` | Report a bug, feature request, or observation to platform admins |
 
 ## Resources
 
@@ -104,9 +98,6 @@ Add to `.cursor/mcp.json` in your project:
 
 | Variable | Default | Description |
 |---|---|---|
-| `GETTERDONE_API_URL` | `https://getterdone.ai` | API base URL |
-| `GETTERDONE_CLIENT_ID` | — | Override client ID (skip credentials file) |
-| `GETTERDONE_CLIENT_SECRET` | — | Override client secret (skip credentials file) |
 | `GETTERDONE_CREDENTIALS_PATH` | `~/.getterdone/credentials.json` | Credentials file path |
 
 ## Development
@@ -134,7 +125,7 @@ src/
 ├── credentials.ts            # Credential load/save
 ├── api-client.ts             # HTTP client with retry logic
 ├── auth.ts                   # PoW solver + token lifecycle
-├── tools.ts                  # 11 MCP tool registrations
+├── tools.ts                  # 12 MCP tool registrations
 └── resources-and-prompts.ts  # 3 resources + 2 prompt templates
 ```
 

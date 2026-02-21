@@ -177,4 +177,22 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         },
         async (args) => wrap(() => api.configureWebhook(args.url))
     );
+
+    // 12. report_platform_issue
+    server.tool(
+        'report_platform_issue',
+        'Submit a bug report, feature request, or general observation to the GetterDone platform admins. Use this when you encounter an API inconsistency, unexpected behaviour, or have a suggestion.',
+        {
+            type: z.enum(['bug', 'feature_request', 'general']).describe("Type of feedback: 'bug' for errors/inconsistencies, 'feature_request' for suggestions, 'general' for other observations"),
+            title: z.string().min(3).max(120).describe('Short summary of the issue or request (max 120 chars)'),
+            description: z.string().min(10).max(2000).describe('Detailed description including steps to reproduce, expected vs actual behaviour, or the rationale for the feature request'),
+            severity: z.enum(['low', 'medium', 'high', 'critical']).optional().describe("Estimated severity (optional): 'critical' = platform unusable, 'high' = major feature broken, 'medium' = degraded experience, 'low' = minor annoyance"),
+        },
+        async (args) => wrap(() => api.reportPlatformIssue({
+            type: args.type,
+            title: args.title,
+            description: args.description,
+            severity: args.severity,
+        }))
+    );
 }

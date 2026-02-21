@@ -259,6 +259,17 @@ export class ApiClient {
     async getWebhookConfig(): Promise<unknown> {
         return this.request('GET', '/api/agents/webhooks');
     }
+
+    // ── Platform Feedback ────────────────────────────────────
+
+    async reportPlatformIssue(body: {
+        type: 'bug' | 'feature_request' | 'general';
+        title: string;
+        description: string;
+        severity?: 'low' | 'medium' | 'high' | 'critical';
+    }): Promise<unknown> {
+        return this.request('POST', '/api/platform/feedback', body);
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────
