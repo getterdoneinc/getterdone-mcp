@@ -195,7 +195,11 @@ export class ApiClient {
         reviewCriteria?: { keywords?: string[]; minImages?: number };
         minTrustScore?: number;
     }): Promise<unknown> {
-        return this.request('POST', '/api/tasks', body);
+        const { expiresInHours, ...rest } = body;
+        const deadline = expiresInHours != null
+            ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
+            : undefined;
+        return this.request('POST', '/api/tasks', { ...rest, deadline });
     }
 
     async listTasks(params: { status?: string; limit?: number } = {}): Promise<unknown> {
