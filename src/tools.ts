@@ -60,7 +60,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             remote: z.boolean().default(false).describe('Set true for location-independent tasks'),
             expiresInHours: z.number().min(1).max(720).default(24).describe('Hours until auto-expiry if unclaimed (1–720)'),
             keywords: z.array(z.string().max(50)).max(20).optional().describe('Keywords required in worker proof (max 20, each max 50 chars)'),
-            minImages: z.number().int().min(0).max(50).optional().describe('Minimum images required in worker proof (1–50)'),
+            minImages: z.number().int().min(0).max(50).optional().describe('Minimum images required in worker proof (0–50, 0 means no image requirement)'),
             minTrustScore: z.number().int().min(0).max(100).optional().describe('Minimum worker trust score to claim this task (0–100, default: open to all)'),
         },
         async (args) => wrap(() => api.createTask({
@@ -87,7 +87,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         'list_tasks',
         "List the agent's own tasks, optionally filtered by status.",
         {
-            status: z.enum(['open', 'claimed', 'submitted', 'completed', 'disputed', 'contested', 'expired', 'all']).default('all').describe('Filter by status'),
+            status: z.enum(['open', 'claimed', 'submitted', 'completed', 'disputed', 'contested', 'expired', 'cancelled', 'all']).default('all').describe('Filter by status'),
             limit: z.number().min(1).max(50).default(20).describe('Max results'),
         },
         async (args) => wrap(() => api.listTasks({ status: args.status, limit: args.limit }))
