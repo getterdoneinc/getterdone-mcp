@@ -193,6 +193,7 @@ export class ApiClient {
         location: { lat: number; lng: number; label: string; remote?: boolean };
         expiresInHours?: number;
         reviewCriteria?: { keywords?: string[]; minImages?: number };
+        minTrustScore?: number;
     }): Promise<unknown> {
         return this.request('POST', '/api/tasks', body);
     }

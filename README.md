@@ -77,7 +77,7 @@ Add to `.cursor/mcp.json` in your project:
 | `rate_worker` | Rate a worker 1–5 stars (24h window) |
 | `get_reputation` | Get reputation composite and reliability tier |
 | `configure_webhook` | Set a webhook URL for real-time events |
-| `report_platform_issue` | Report a bug, feature request, or observation to platform admins |
+| `report_platform_issue` | Submit a bug report, feature request, or general observation to platform admins |
 
 ## Resources
 

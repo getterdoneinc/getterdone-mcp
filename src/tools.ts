@@ -1,5 +1,5 @@
 /**
- * Register all 11 MCP tools on the server instance.
+ * Register all 12 MCP tools on the server instance.
  */
 
 import { z } from 'zod';
@@ -50,28 +50,35 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         'create_task',
         "Post a new task to the GetterDone marketplace. Funds are automatically escrowed from the agent's balance.",
         {
-            title: z.string().describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
-            description: z.string().describe('Detailed instructions for the worker'),
+            title: z.string().min(5).max(150).describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
+            description: z.string().min(20).max(5000).describe('Detailed instructions for the worker'),
             reward: z.number().min(1).max(100).describe('USD amount to pay the worker ($1–$100)'),
-            category: z.enum(['General', 'Delivery', 'Photography', 'Research', 'Physical Task']).default('General').describe('Task category'),
-            lat: z.number().describe('Location latitude'),
-            lng: z.number().describe('Location longitude'),
-            locationLabel: z.string().describe('Human-readable address'),
+            category: z.enum(['General', 'Research', 'Data Entry', 'Writing', 'Design', 'Photography', 'Delivery', 'Shopping', 'Handyman', 'Errands', 'Translation', 'Physical Task', 'Customer Service', 'Other']).default('General').describe('Task category'),
+            lat: z.number().optional().describe('Location latitude (optional when remote=true)'),
+            lng: z.number().optional().describe('Location longitude (optional when remote=true)'),
+            locationLabel: z.string().max(200).optional().describe('Human-readable address (optional when remote=true)'),
             remote: z.boolean().default(false).describe('Set true for location-independent tasks'),
-            expiresInHours: z.number().default(24).describe('Hours until auto-expiry if unclaimed'),
-            keywords: z.array(z.string()).optional().describe('Keywords required in worker proof'),
-            minImages: z.number().optional().describe('Minimum images required in worker proof'),
+            expiresInHours: z.number().min(1).max(720).default(24).describe('Hours until auto-expiry if unclaimed (1–720)'),
+            keywords: z.array(z.string().max(50)).max(20).optional().describe('Keywords required in worker proof (max 20, each max 50 chars)'),
+            minImages: z.number().int().min(1).max(50).optional().describe('Minimum images required in worker proof (1–50)'),
+            minTrustScore: z.number().int().min(0).max(100).optional().describe('Minimum worker trust score to claim this task (0–100, default: open to all)'),
         },
         async (args) => wrap(() => api.createTask({
             title: args.title,
             description: args.description,
             reward: args.reward,
             category: args.category,
-            location: { lat: args.lat, lng: args.lng, label: args.locationLabel, remote: args.remote },
+            location: {
+                lat: args.remote && args.lat == null ? 0 : (args.lat ?? 0),
+                lng: args.remote && args.lng == null ? 0 : (args.lng ?? 0),
+                label: args.remote && args.locationLabel == null ? 'Remote' : (args.locationLabel ?? ''),
+                remote: args.remote,
+            },
             expiresInHours: args.expiresInHours,
             reviewCriteria: (args.keywords || args.minImages)
                 ? { keywords: args.keywords, minImages: args.minImages }
                 : undefined,
+            minTrustScore: args.minTrustScore,
         }))
     );
 
@@ -112,7 +119,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         "Dispute a submitted task's proof-of-work. The worker will be notified and may contest.",
         {
             taskId: z.string().describe('The task ID to dispute'),
-            reason: z.string().min(10).describe('Detailed reason why the proof is insufficient (min 10 chars)'),
+            reason: z.string().min(10).max(2000).describe('Detailed reason why the proof is insufficient (10–2000 chars)'),
         },
         async (args) => wrap(() => api.disputeTask(args.taskId, args.reason))
     );
@@ -173,7 +180,10 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         'configure_webhook',
         'Register or update a webhook URL for real-time event notifications.',
         {
-            url: z.string().url().describe('HTTPS URL to receive webhook POST requests'),
+            url: z.string().url().refine(
+                (u) => u.startsWith('https://'),
+                'Webhook URL must use HTTPS'
+            ).describe('HTTPS URL to receive webhook POST requests'),
         },
         async (args) => wrap(() => api.configureWebhook(args.url))
     );
