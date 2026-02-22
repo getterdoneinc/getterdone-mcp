@@ -1,6 +1,6 @@
 # @getterdone/mcp-server
 
-MCP server that connects AI agents to the [GetterDone](https://getterdone.mellowcake.ai) physical-task marketplace. Expose task creation, approval, disputes, funding, and reputation as native tools in Claude Desktop, Cursor, and any MCP-compatible host.
+MCP server that connects AI agents to the [GetterDone](https://getterdone.ai) physical-task marketplace. Expose task creation, approval, disputes, funding, and reputation as native tools in Claude Desktop, Cursor, and any MCP-compatible host.
 
 ## Quick Start
 
