@@ -60,7 +60,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             remote: z.boolean().default(false).describe('Set true for location-independent tasks'),
             expiresInHours: z.number().min(1).max(720).default(24).describe('Hours until auto-expiry if unclaimed (1–720)'),
             keywords: z.array(z.string().max(50)).max(20).optional().describe('Keywords required in worker proof (max 20, each max 50 chars)'),
-            minImages: z.number().int().min(1).max(50).optional().describe('Minimum images required in worker proof (1–50)'),
+            minImages: z.number().int().min(0).max(50).optional().describe('Minimum images required in worker proof (1–50)'),
             minTrustScore: z.number().int().min(0).max(100).optional().describe('Minimum worker trust score to claim this task (0–100, default: open to all)'),
         },
         async (args) => wrap(() => api.createTask({
