@@ -57,10 +57,10 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             lat: z.number().optional().describe('Location latitude (optional when remote=true)'),
             lng: z.number().optional().describe('Location longitude (optional when remote=true)'),
             locationLabel: z.string().max(200).optional().describe('Human-readable address (optional when remote=true)'),
-            remote: z.boolean().default(false).describe('Set true for location-independent tasks'),
-            expiresInHours: z.number().min(1).max(720).default(24).describe('Hours until auto-expiry if unclaimed (1–720)'),
-            keywords: z.array(z.string().max(50)).max(20).optional().describe('Keywords required in worker proof (max 20, each max 50 chars)'),
-            minImages: z.number().int().min(0).max(50).optional().describe('Minimum images required in worker proof (0–50, 0 means no image requirement)'),
+            remote: z.boolean().default(false).describe('Set true for any task that does not require the worker to be at a physical location — including image-only tasks, research tasks, writing, or any remotely-fulfilled work. If omitted or false, you MUST supply lat, lng, and locationLabel.'),
+            expiresInHours: z.number().min(0.5).max(720).default(24).describe('Hours until auto-expiry if unclaimed (0.5–720, i.e. 30 min minimum)'),
+            keywords: z.array(z.string().max(50)).max(20).optional().describe('Keywords required in worker proof (max 20, each max 50 chars inclusive — a 50-character keyword is valid)'),
+            minImages: z.number().int().min(0).max(10).optional().describe('Minimum images required in worker proof (0–10). Pass 0 to explicitly record no image requirement. Omit entirely to leave reviewCriteria unset.'),
             minTrustScore: z.number().int().min(0).max(100).optional().describe('Minimum worker trust score to claim this task (0–100, default: open to all)'),
         },
         async (args) => wrap(() => api.createTask({
@@ -75,7 +75,10 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
                 remote: args.remote,
             },
             expiresInHours: args.expiresInHours,
-            reviewCriteria: (args.keywords || args.minImages)
+            reviewCriteria: (
+                (args.keywords != null && args.keywords.length > 0) ||
+                typeof args.minImages === 'number'
+            )
                 ? { keywords: args.keywords, minImages: args.minImages }
                 : undefined,
             minTrustScore: args.minTrustScore,
@@ -205,4 +208,57 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             severity: args.severity,
         }))
     );
+
+    // 13. get_worker_profile
+    server.tool(
+        'get_worker_profile',
+        "Get a worker's public profile including their trust tier, star rating, task completion stats, and recent ratings from agents. Use this to vet a worker before assigning high-value tasks.",
+        {
+            workerId: z.string().describe("The worker's unique user ID (found in task.workerId)"),
+        },
+        async (args) => wrap(() => api.getWorkerProfile(args.workerId))
+    );
+
+    // 14. get_agent_metrics
+    server.tool(
+        'get_agent_metrics',
+        "Get comprehensive performance metrics for your own agent account: balance, task breakdown by status, total platform spend, reputation stats, and recent worker ratings.",
+        {},
+        async () => wrap(() => api.getAgentMetrics(agentId))
+    );
+
+    // 15. upload_attachment
+    server.tool(
+        'upload_attachment',
+        'Upload a reference file (image, PDF, or short video) to a task so the assigned worker can access it after claiming. Files are stored privately — workers receive a time-limited download link. Max 5 attachments per task. Task must be open or claimed. Supply either fileUrl (public download URL) OR fileData+mimeType (base64-encoded bytes) — not both.',
+        {
+            taskId: z.string().describe('The task ID to attach the file to'),
+            filename: z.string().min(1).max(255).describe('Display name for the attachment (e.g. "storefront_reference.jpg")'),
+            fileUrl: z.string().url().optional()
+                .describe('A publicly accessible URL to the file (JPEG/PNG/WebP ≤8 MB, PDF ≤25 MB, MP4/WebM/MOV ≤150 MB). The server will download and re-upload it. Use this OR fileData, not both.'),
+            fileData: z.string().optional()
+                .describe('Base64-encoded file contents. Use instead of fileUrl for files that cannot be given a public URL (e.g. generated files, private data). Must be accompanied by mimeType.'),
+            mimeType: z.string().optional()
+                .describe('MIME type of the file when using fileData (e.g. "image/jpeg", "application/pdf", "video/mp4"). Required when fileData is provided; ignored when fileUrl is used.'),
+        },
+        async (args) => {
+            // Cross-field validation (SDK only accepts flat ZodRawShape, so validate here)
+            const hasUrl = args.fileUrl != null;
+            const hasData = args.fileData != null;
+            if (!hasUrl && !hasData) {
+                return error({ message: 'Provide either fileUrl (public download URL) or fileData (base64-encoded bytes) — one is required.' });
+            }
+            if (hasUrl && hasData) {
+                return error({ message: 'Provide either fileUrl or fileData, not both.' });
+            }
+            if (hasData && !args.mimeType) {
+                return error({ message: 'mimeType is required when supplying fileData.' });
+            }
+            const source = hasUrl
+                ? { type: 'url' as const, url: args.fileUrl! }
+                : { type: 'base64' as const, data: args.fileData!, mimeType: args.mimeType! };
+            return wrap(() => api.uploadAttachment(args.taskId, args.filename, source));
+        }
+    );
 }
+

@@ -275,6 +275,101 @@ export class ApiClient {
     }): Promise<unknown> {
         return this.request('POST', '/api/platform/feedback', body);
     }
+
+    // ── Worker & Agent Profiles ──────────────────────────────
+
+    /**
+     * Get a worker's public profile (auth required — sends agent Bearer token).
+     * Returns: nickname, avatarSeed, rating, trustTier, completedTasks, recentRatings.
+     */
+    async getWorkerProfile(workerId: string): Promise<unknown> {
+        return this.request('GET', `/api/workers/${workerId}/profile`);
+    }
+
+    /**
+     * Upload a reference file to a task as an attachment.
+     *
+     * Accepts two source types:
+     *   - { type: 'url', url }      — downloads from a public URL and re-uploads.
+     *   - { type: 'base64', data, mimeType } — decodes base64 locally; no outbound fetch.
+     *
+     * Only the posting agent can upload. Task must be open or claimed.
+     */
+    async uploadAttachment(
+        taskId: string,
+        filename: string,
+        source: { type: 'url'; url: string } | { type: 'base64'; data: string; mimeType: string },
+    ): Promise<unknown> {
+        let blob: Blob;
+
+        if (source.type === 'url') {
+            // Fetch the file from the provided public URL
+            let fileRes: Response;
+            try {
+                fileRes = await fetch(source.url);
+            } catch (err) {
+                throw {
+                    status: 400,
+                    code: 'bad_request',
+                    message: `Failed to fetch file from URL: ${err instanceof Error ? err.message : String(err)}`,
+                } satisfies ApiError;
+            }
+            if (!fileRes.ok) {
+                throw {
+                    status: 400,
+                    code: 'bad_request',
+                    message: `Could not download file (HTTP ${fileRes.status}). Make sure the URL is publicly accessible.`,
+                } satisfies ApiError;
+            }
+            const contentType = fileRes.headers.get('content-type') ?? 'application/octet-stream';
+            const buffer = await fileRes.arrayBuffer();
+            blob = new Blob([buffer], { type: contentType });
+        } else {
+            // Decode base64 locally — no external request needed
+            const buffer = Buffer.from(source.data, 'base64');
+            blob = new Blob([buffer], { type: source.mimeType });
+        }
+
+        const formData = new FormData();
+        formData.append('file', blob, filename);
+
+        const token = await this.getToken();
+        const res = await fetch(`${this.baseUrl}/api/tasks/${taskId}/attachments`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'User-Agent': '@getterdone/mcp-server',
+                // Do NOT set Content-Type — let fetch set multipart boundary automatically
+            },
+            body: formData,
+        });
+
+        if (!res.ok) {
+            let errorMessage: string;
+            try {
+                const errorJson = await res.json() as { error?: string };
+                errorMessage = errorJson.error ?? `HTTP ${res.status}`;
+            } catch {
+                errorMessage = `HTTP ${res.status} ${res.statusText}`;
+            }
+            throw {
+                status: res.status,
+                code: STATUS_TO_CODE[res.status] ?? 'unknown',
+                message: errorMessage,
+            } satisfies ApiError;
+        }
+
+        const json = await res.json() as { success: boolean; data?: unknown };
+        return json.data;
+    }
+
+    /**
+     * Get comprehensive metrics for the authenticated agent's own account.
+     * Includes: balance, task breakdown, total spend, reputation, recent worker ratings.
+     */
+    async getAgentMetrics(agentId: string): Promise<unknown> {
+        return this.request('GET', `/api/agents/${agentId}/metrics`);
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────

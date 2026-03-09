@@ -127,13 +127,25 @@ export async function setupAgent(
 
     // 3. Register
     log('📝 Registering agent...');
-    const result = await api.register({
-        name,
-        challengeId: challenge.challengeId,
-        solution,
-        timing: durationMs,
-        environment: `node:${process.versions.node.split('.')[0]}`,
-    });
+    let result: { agent: { id: string; name: string }; clientId: string; clientSecret: string };
+    try {
+        result = await api.register({
+            name,
+            challengeId: challenge.challengeId,
+            solution,
+            timing: durationMs,
+            environment: `node:${process.versions.node.split('.')[0]}`,
+        });
+    } catch (err: unknown) {
+        const apiErr = err as { status?: number; message?: string };
+        if (apiErr.status === 409) {
+            throw new Error(
+                `Agent name "${name}" is already taken. Choose a unique name and run setup again.\n` +
+                `  Check availability: GET ${apiUrl.replace(/\/$/, '')}/api/auth/agent/check-name?q=${encodeURIComponent(name)}`
+            );
+        }
+        throw err;
+    }
 
     log(`   ✅ Agent "${result.agent.name}" registered!`);
     log(`   Agent ID: ${result.agent.id}`);
