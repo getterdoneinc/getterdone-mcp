@@ -36,9 +36,9 @@ export async function startServer(): Promise<void> {
     tokenManager = new TokenManager(creds.clientId, creds.clientSecret, api);
 
     // 4. Register tools, resources, and prompts
-    registerTools(server, api, creds.agentId);
+    registerTools(server, api, creds.agentId, creds);
     registerResources(server, api, creds.agentId);
-    registerPrompts(server);
+    registerPrompts(server, creds);
 
     // 5. Connect via stdio
     const transport = new StdioServerTransport();

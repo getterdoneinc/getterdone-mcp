@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ApiClient, ApiError } from './api-client.js';
+import type { Credentials } from './credentials.js';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ async function wrap(fn: () => Promise<unknown>): Promise<ToolResult> {
 
 // ── Registration ─────────────────────────────────────────
 
-export function registerTools(server: McpServer, api: ApiClient, agentId: string): void {
+export function registerTools(server: McpServer, api: ApiClient, agentId: string, creds?: Credentials): void {
 
     // 1. create_task
     server.tool(
@@ -140,12 +141,18 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 7. fund_account
     server.tool(
         'fund_account',
-        "Add funds to the agent's wallet.",
+        "Add funds to the agent's wallet. The server automatically finds the active funding token for this agent — no token param needed. Just pass the amount.",
         {
-            amount: z.number().min(1).describe('USD amount to add (minimum $1.00)'),
-            paymentMethodNonce: z.string().optional().describe('Braintree nonce (optional in sandbox)'),
+            amount: z.number().min(1).describe('USD amount to add (minimum $1.00). Must not exceed the token limit set by the AgentOwner.'),
+            fundingToken: z.string().optional().describe(
+                'Optional: explicit funding token override (format: gd_fund_XXXXXXXX). ' +
+                'Omit this — the server auto-resolves the active token for this agent.'
+            ),
         },
-        async (args) => wrap(() => api.fundAccount(args.amount, args.paymentMethodNonce))
+        async (args) => {
+            // Pass explicit token only if provided; server auto-resolves otherwise
+            return wrap(() => api.fundAccount(args.amount, args.fundingToken));
+        }
     );
 
     // 8. get_balance

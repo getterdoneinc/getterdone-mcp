@@ -97,7 +97,7 @@ export function registerResources(server: McpServer, api: ApiClient, agentId: st
 
 // ── Prompts ──────────────────────────────────────────────
 
-export function registerPrompts(server: McpServer): void {
+export function registerPrompts(server: McpServer, creds?: import('./credentials.js').Credentials): void {
 
     // review_submission — guide agent through reviewing a worker's proof
     server.prompt(
@@ -156,5 +156,56 @@ export function registerPrompts(server: McpServer): void {
                 },
             }],
         })
+    );
+
+    // fund_account — guide agent through funding wallet or directing owner to one-time setup
+    server.prompt(
+        'fund_account',
+        'Add funds to this agent wallet, or guide the owner through one-time setup if no active funding token exists',
+        { amount: z.number().min(1).describe('USD amount to add (minimum $1.00)') },
+        async ({ amount }) => {
+            const ownerUrl = `${creds?.apiUrl ?? 'https://getterdone.ai'}/agent-owner`;
+            const agentId = creds?.agentId ?? '<your-agent-id>';
+            // Embed agentId in URL so the funding token form is pre-filled when the owner arrives
+            const ownerUrlWithAgent = creds?.agentId
+                ? `${ownerUrl}?agentId=${encodeURIComponent(creds.agentId)}`
+                : ownerUrl;
+
+            const lines = [
+                `I need to add $${amount.toFixed(2)} to my GetterDone wallet.`,
+                '',
+                '## How this works',
+                '',
+                'The server automatically finds my active funding token — **I never need to',
+                'know or store the token string.** I just call:',
+                '```',
+                `fund_account({ amount: ${amount} })`,
+                '```',
+                'The server looks up my active token by agent ID and charges my owner\'s card.',
+                '',
+                '## If I get "no active funding token found"',
+                '',
+                `My owner needs to do a **one-time setup** at:`,
+                `**${ownerUrlWithAgent}**`,
+                `(The Agent ID field will be pre-filled automatically.)`,
+                '',
+                '1. Sign in with Google or GitHub.',
+                '2. Register (name + email).',
+                '3. Pass Stripe Identity KYC (government ID, ~2 minutes).',
+                '4. Add a credit/debit card.',
+                `5. Create a Funding Token for Agent ID: \`${agentId}\``,
+                `   with an amount limit of at least **$${amount.toFixed(2)}**.`,
+                '',
+                '**That is all.** Once the token is created, every future `fund_account` call',
+                'works automatically — the owner never needs to share the token string with me.',
+            ];
+
+            return {
+                messages: [{
+                    role: 'user' as const,
+                    content: { type: 'text' as const, text: lines.join('\n') },
+                }],
+            };
+        }
     );
 }

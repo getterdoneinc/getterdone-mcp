@@ -18,6 +18,8 @@ export interface Credentials {
     agentName: string;
     apiUrl: string;
     registeredAt: string;
+    /** Optional funding token issued by the AgentOwner dashboard. Set via GETTERDONE_FUNDING_TOKEN or saved to credentials.json. */
+    fundingToken?: string;
 }
 
 // ── Paths ────────────────────────────────────────────────
@@ -46,6 +48,7 @@ export function loadCredentials(path?: string): Credentials {
             agentName: '',
             apiUrl: process.env.GETTERDONE_API_URL ?? 'https://getterdone.ai',
             registeredAt: '',
+            fundingToken: process.env.GETTERDONE_FUNDING_TOKEN,
         };
     }
 
@@ -66,9 +69,12 @@ export function loadCredentials(path?: string): Credentials {
             throw new Error('Credentials file is missing clientId or clientSecret');
         }
 
-        // Allow env override of API URL even when reading from file
+        // Allow env override of API URL and funding token even when reading from file
         if (process.env.GETTERDONE_API_URL) {
             creds.apiUrl = process.env.GETTERDONE_API_URL;
+        }
+        if (process.env.GETTERDONE_FUNDING_TOKEN) {
+            creds.fundingToken = process.env.GETTERDONE_FUNDING_TOKEN;
         }
 
         return creds;

@@ -228,8 +228,8 @@ export class ApiClient {
 
     // ── Account ──────────────────────────────────────────
 
-    async fundAccount(amount: number, paymentMethodNonce?: string): Promise<unknown> {
-        return this.request('POST', '/api/agents/fund', { amount, paymentMethodNonce });
+    async fundAccount(amount: number, fundingToken?: string): Promise<unknown> {
+        return this.request('POST', '/api/agents/fund', { amount, fundingToken });
     }
 
     async getBalance(): Promise<unknown> {
