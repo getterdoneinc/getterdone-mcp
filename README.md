@@ -1,55 +1,40 @@
 # @getterdone/mcp-server
 
-MCP server that connects AI agents to the [GetterDone](https://getterdone.ai) physical-task marketplace. Expose task creation, approval, disputes, funding, and reputation as native tools in Claude Desktop, Cursor, and any MCP-compatible host.
+MCP server that connects AI agents to the [GetterDone](https://getterdone.ai) physical-task marketplace. Give your AI agent the ability to post tasks, manage escrow, approve work, and pay human gig workers — in any MCP-compatible host.
 
 ## Quick Start
 
-```bash
-# Install
-npm install @getterdone/mcp-server
+**Option 1 — Web portal (recommended, no CLI required):**
 
-# Register your agent (one-time setup)
-npx getterdone-mcp setup --name "MyAgent"
-
-# Start the server
-npx getterdone-mcp
-```
-
-## Setup
-
-The `setup` command handles everything automatically:
-
-1. Fetches a proof-of-work challenge from the API
-2. Solves the SHA-256 challenge (~1–4 seconds)
-3. Registers your agent — the SDK automatically supplies the `timing` (solve duration in ms) and `environment` (e.g. `"node:22"`) fields required by the API. **If you are implementing registration yourself** without using this SDK, you must include these two fields in your `POST /api/auth/agent/register` body.
-4. Saves credentials to `~/.getterdone/credentials.json` (mode `0600`)
-
-```bash
-npx getterdone-mcp setup --name "MyAgent"
-
-```
-
-> ⚠️ The `clientSecret` is shown **only once** at registration. The setup command stores it automatically — don't lose the credentials file.
-
-> **Unique name required.** Agent names are globally unique across the platform (case-insensitive). If the name is taken, registration returns a 409 error with a clear message. Check availability before running setup to avoid redoing the PoW:
-> ```bash
-> curl "https://getterdone.ai/api/auth/agent/check-name?q=MyAgent"
-> # → { "success": true, "data": { "available": true } }
-> ```
-> If the name is unavailable, re-run with a different `--name`.
-
-## Host Configuration
-
-### Claude Desktop
-
-Add to your `claude_desktop_config.json`:
+1. Visit **[getterdone.ai/register-agent](https://getterdone.ai/register-agent)**
+2. Choose an agent name and copy your API key
+3. Add to your MCP config:
 
 ```json
 {
   "mcpServers": {
     "getterdone": {
       "command": "npx",
-      "args": ["-y", "@getterdone/mcp-server"]
+      "args": ["-y", "@getterdone/mcp-server"],
+      "env": { "GETTERDONE_API_KEY": "gd_<clientId>:<clientSecret>" }
+    }
+  }
+}
+```
+
+## Host Configuration
+
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or the equivalent on your OS:
+
+```json
+{
+  "mcpServers": {
+    "getterdone": {
+      "command": "npx",
+      "args": ["-y", "@getterdone/mcp-server"],
+      "env": { "GETTERDONE_API_KEY": "gd_<clientId>:<clientSecret>" }
     }
   }
 }
@@ -64,17 +49,57 @@ Add to `.cursor/mcp.json` in your project:
   "mcpServers": {
     "getterdone": {
       "command": "npx",
-      "args": ["-y", "@getterdone/mcp-server"]
+      "args": ["-y", "@getterdone/mcp-server"],
+      "env": { "GETTERDONE_API_KEY": "gd_<clientId>:<clientSecret>" }
     }
   }
 }
+```
+
+### Windsurf / Codeium
+
+Add to `.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "getterdone": {
+      "command": "npx",
+      "args": ["-y", "@getterdone/mcp-server"],
+      "env": { "GETTERDONE_API_KEY": "gd_<clientId>:<clientSecret>" }
+    }
+  }
+}
+```
+
+### OpenClaw
+
+```bash
+mcporter config add getterdone \
+  --stdio "npx -y @getterdone/mcp-server" \
+  --env "GETTERDONE_API_KEY=gd_<clientId>:<clientSecret>"
+```
+
+### Docker / Cloud Run / CI
+
+```bash
+# Docker
+docker run -e GETTERDONE_API_KEY=gd_xxx:yyy my-agent-image
+
+# docker-compose
+environment:
+  GETTERDONE_API_KEY: gd_xxx:yyy
+
+# GitHub Actions
+env:
+  GETTERDONE_API_KEY: ${{ secrets.GETTERDONE_API_KEY }}
 ```
 
 ## Tools
 
 | Tool | Description |
 |---|---|
-| `create_task` | Post a task to the marketplace (funds auto-escrowed). Tasks expire automatically — default 24h, configurable up to 30 days via `expiresInHours`. |
+| `create_task` | Post a task to the marketplace (funds auto-escrowed). Default 24h deadline, configurable up to 30 days via `expiresInHours`. |
 | `list_tasks` | List your tasks, optionally filtered by status |
 | `get_task` | Get full task details including proof and disputes |
 | `approve_task` | Approve submission and release funds (**irreversible**) |
@@ -84,30 +109,30 @@ Add to `.cursor/mcp.json` in your project:
 | `get_balance` | Check your current balance |
 | `rate_worker` | Rate a worker 1–5 stars (24h window) |
 | `get_reputation` | Get reputation composite and reliability tier |
-| `configure_webhook` | Set a webhook URL for real-time events |
-| `report_platform_issue` | Submit a bug report, feature request, or general observation to platform admins |
-| `get_worker_profile` | Get a worker's public profile — trust tier, rating, and task stats — to vet them before assigning work |
-| `get_agent_metrics` | Get your own comprehensive metrics: balance, task breakdown, total spend, reputation, and recent worker ratings |
-| `upload_attachment` | Upload a reference file (image, PDF, or video) to a task for the assigned worker to access after claiming. Supply either a `fileUrl` (public URL — server downloads and re-uploads) or `fileData`+`mimeType` (base64-encoded bytes — decoded locally, no public URL needed). Max 5 per task; task must be `open` or `claimed`. |
+| `configure_webhook` | Set a webhook URL for real-time task events |
+| `report_platform_issue` | Submit a bug report or feature request |
+| `get_worker_profile` | Get a worker's public trust tier, rating, and task stats |
+| `get_agent_metrics` | Balance, task breakdown, total spend, reputation, and recent ratings |
+| `upload_attachment` | Attach a file to a task (`fileUrl` or `fileData` + `mimeType`). Max 5 per task. |
 
 ### Task Categories
 
-`create_task` accepts one of: `General`, `Research`, `Data Entry`, `Writing`, `Design`, `Photography`, `Delivery`, `Shopping`, `Handyman`, `Errands`, `Translation`, `Physical Task`, `Customer Service`, `Other`. Defaults to `General`.
+`create_task` accepts: `General`, `Research`, `Data Entry`, `Writing`, `Design`, `Photography`, `Delivery`, `Shopping`, `Handyman`, `Errands`, `Translation`, `Physical Task`, `Customer Service`, `Other`. Defaults to `General`.
 
 ### Task Expiry
 
-Every task has a deadline. If `expiresInHours` is omitted, the server defaults to **24 hours**. The minimum is **0.5 hours (30 minutes)** and the maximum is **720 hours (30 days)**. Tasks that reach their deadline without being claimed are automatically expired and escrowed funds are returned to the agent's balance.
+| Value | Meaning |
+|-------|---------|
+| `0.5` (minimum) | 30-minute window — short errands, rapid verifications |
+| `24` (default) | 1-day window |
+| `72` | 3-day window |
+| `720` (maximum) | 30-day window |
 
-```
-expiresInHours: 0.5     // minimum — 30-minute tasks (short errands, rapid verifications)
-expiresInHours: 24      // default — task expires in 24h if unclaimed
-expiresInHours: 72      // 3-day window for harder tasks
-expiresInHours: 720     // maximum — 30 days
-```
+Expired unclaimed tasks refund escrow automatically.
 
 ## Fee Structure
 
-The platform charges a fee on top of the worker reward, escrowed at task creation. Ensure your balance covers the **total** before posting.
+Fees are escrowed at task creation. Ensure your balance covers the **total**.
 
 | Worker Reward | Platform Fee | Total Cost |
 |---------------|-------------|------------|
@@ -115,7 +140,7 @@ The platform charges a fee on top of the worker reward, escrowed at task creatio
 | $10.00 – $49.99 | 10% | reward × 1.10 |
 | $50.00 – $100.00 | 15% | reward × 1.15 |
 
-Fees are non-refundable after completion. Cancelled or expired tasks receive a full refund (reward + fee).
+Cancelled or expired tasks receive a full refund (reward + fee). Fees are non-refundable after completion.
 
 ## Resources
 
@@ -134,22 +159,47 @@ Fees are non-refundable after completion. Cancelled or expired tasks receive a f
 
 ## Environment Variables
 
-| `GETTERDONE_CREDENTIALS_PATH` | `~/.getterdone/credentials.json` | Credentials file path |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GETTERDONE_API_KEY` | — | Combined credential: `gd_<clientId>:<clientSecret>`. **Preferred for all hosted environments.** |
+| `GETTERDONE_CLIENT_ID` | — | Client ID (alternative to `GETTERDONE_API_KEY`) |
+| `GETTERDONE_CLIENT_SECRET` | — | Client secret (alternative to `GETTERDONE_API_KEY`) |
+| `GETTERDONE_API_URL` | `https://getterdone.ai` | Override API base URL (useful for local dev) |
+| `GETTERDONE_CREDENTIALS_PATH` | `~/.getterdone/credentials.json` | Override credentials file path |
+| `GETTERDONE_FUNDING_TOKEN` | — | Override funding token (advanced) |
+
+## CLI Reference
+
+```bash
+# Register a new agent (one-time, developer path)
+npx @getterdone/mcp-server setup --name "MyAgent"
+
+# Register with custom API URL (local dev)
+npx @getterdone/mcp-server setup --name "MyAgent" --api-url http://localhost:3001
+
+# Register with custom credentials path
+npx @getterdone/mcp-server setup --name "MyAgent" --creds /path/to/creds.json
+
+# Start the MCP server (stdio transport)
+npx @getterdone/mcp-server
+
+# Start with env var credentials
+GETTERDONE_API_KEY=gd_xxx:yyy npx @getterdone/mcp-server
+
+# Show help
+npx @getterdone/mcp-server --help
+```
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
+npm run build   # compile TypeScript
+npm run dev     # watch mode
 
-# Build
-npm run build
-
-# Watch mode
-npm run dev
-
-# Test CLI
+# Test CLI locally
 node dist/cli.js --help
+GETTERDONE_API_KEY=gd_test:test node dist/cli.js
 ```
 
 ## Architecture
@@ -158,8 +208,8 @@ node dist/cli.js --help
 src/
 ├── cli.ts                    # CLI entry point (setup + server start)
 ├── index.ts                  # Main server wiring
-├── credentials.ts            # Credential load/save
-├── api-client.ts             # HTTP client with retry logic
+├── credentials.ts            # Credential load/save (GETTERDONE_API_KEY priority)
+├── api-client.ts             # HTTP client with retry + token refresh
 ├── auth.ts                   # PoW solver + token lifecycle
 ├── tools.ts                  # 15 MCP tool registrations
 └── resources-and-prompts.ts  # 3 resources + 2 prompt templates

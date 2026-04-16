@@ -1,8 +1,8 @@
 /**
  * MCP resources and prompt templates.
  *
- * Resources: getterdone://balance, getterdone://tasks/active, getterdone://reputation
- * Prompts:   review_submission, create_errand
+ * Resources: getterdone://balance, getterdone://tasks/active, getterdone://reputation, getterdone://skill
+ * Prompts:   review_submission, create_errand, fund_account
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -88,6 +88,37 @@ export function registerResources(server: McpServer, api: ApiClient, agentId: st
                         uri: 'getterdone://reputation',
                         mimeType: 'application/json',
                         text: '{"error": "Failed to fetch reputation"}',
+                    }],
+                };
+            }
+        }
+    );
+
+    // Skill document — always returns the latest SKILL.md from the platform
+    // Use this resource at the start of each session to check for skill updates.
+    server.resource(
+        'skill',
+        'getterdone://skill',
+        { description: 'Latest GetterDone Skill document (SKILL.md). Re-read at session start to detect version updates.' },
+        async () => {
+            try {
+                const apiUrl = (api as unknown as { baseUrl?: string }).baseUrl
+                    ?? 'https://getterdone.ai';
+                const res = await fetch(`${apiUrl}/api/docs/spec?doc=skill`);
+                const text = await res.text();
+                return {
+                    contents: [{
+                        uri: 'getterdone://skill',
+                        mimeType: 'text/markdown',
+                        text,
+                    }],
+                };
+            } catch {
+                return {
+                    contents: [{
+                        uri: 'getterdone://skill',
+                        mimeType: 'text/markdown',
+                        text: '# GetterDone Skill\n\nFailed to fetch latest skill document. See https://getterdone.ai/api/docs/spec?doc=skill',
                     }],
                 };
             }

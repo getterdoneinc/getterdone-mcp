@@ -1,8 +1,10 @@
 /**
  * Credential persistence — load / save agent credentials to disk.
  *
- * Default path: ~/.getterdone/credentials.json
- * Env-var overrides: GETTERDONE_CLIENT_ID, GETTERDONE_CLIENT_SECRET
+ * Priority order for credentials:
+ *   1. GETTERDONE_API_KEY env var  (combined "gd_<clientId>:<clientSecret>" format)
+ *   2. GETTERDONE_CLIENT_ID + GETTERDONE_CLIENT_SECRET env vars (separate)
+ *   3. ~/.getterdone/credentials.json (or GETTERDONE_CREDENTIALS_PATH)
  */
 
 import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync } from 'node:fs';
@@ -36,7 +38,29 @@ export function defaultCredentialsPath(): string {
  * Throws if neither source provides valid credentials.
  */
 export function loadCredentials(path?: string): Credentials {
-    // 1. Try env vars
+    // 1. GETTERDONE_API_KEY — combined format: gd_<clientId>:<clientSecret>
+    //    Single env var; works cleanly in Docker, CI, Railway, Cloud Run, etc.
+    const apiKey = process.env.GETTERDONE_API_KEY;
+    if (apiKey) {
+        const colonIdx = apiKey.indexOf(':');
+        if (colonIdx === -1) {
+            throw new Error(
+                'GETTERDONE_API_KEY must be in the format gd_<clientId>:<clientSecret>. ' +
+                'Copy this value from https://getterdone.ai/register-agent after setup.'
+            );
+        }
+        return {
+            clientId: apiKey.slice(0, colonIdx),
+            clientSecret: apiKey.slice(colonIdx + 1),
+            agentId: '',
+            agentName: '',
+            apiUrl: process.env.GETTERDONE_API_URL ?? 'https://getterdone.ai',
+            registeredAt: '',
+            fundingToken: process.env.GETTERDONE_FUNDING_TOKEN,
+        };
+    }
+
+    // 2. Separate GETTERDONE_CLIENT_ID + GETTERDONE_CLIENT_SECRET env vars
     const envId = process.env.GETTERDONE_CLIENT_ID;
     const envSecret = process.env.GETTERDONE_CLIENT_SECRET;
 
@@ -52,12 +76,16 @@ export function loadCredentials(path?: string): Credentials {
         };
     }
 
-    // 2. Try credentials file
+    // 3. Credentials file
     const filePath = path ?? defaultCredentialsPath();
     if (!existsSync(filePath)) {
         throw new Error(
-            `No credentials found. Run "getterdone-mcp setup --name <agent>" first, ` +
-            `or set GETTERDONE_CLIENT_ID and GETTERDONE_CLIENT_SECRET env vars.`
+            'No credentials found. To register your agent, visit:\n' +
+            '  https://getterdone.ai/register-agent\n\n' +
+            'Once registered, set the env var shown at the end of setup:\n' +
+            '  GETTERDONE_API_KEY=gd_<clientId>:<clientSecret>\n\n' +
+            'Or run the CLI setup command (MCP path only):\n' +
+            '  npx @getterdone/mcp-server setup --name <agent-name>'
         );
     }
 

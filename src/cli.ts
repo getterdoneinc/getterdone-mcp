@@ -27,24 +27,31 @@ SETUP OPTIONS
   --creds <path>    Credentials file path (default: ~/.getterdone/credentials.json)
 
 ENVIRONMENT VARIABLES
+  GETTERDONE_API_KEY          Combined credential: gd_<clientId>:<clientSecret>
+                              (preferred — single var for Docker/CI/Cloud Run)
   GETTERDONE_API_URL          Override API base URL
-  GETTERDONE_CLIENT_ID        Override client ID (skip credentials file)
-  GETTERDONE_CLIENT_SECRET    Override client secret (skip credentials file)
+  GETTERDONE_CLIENT_ID        Client ID (alternative to GETTERDONE_API_KEY)
+  GETTERDONE_CLIENT_SECRET    Client secret (alternative to GETTERDONE_API_KEY)
   GETTERDONE_CREDENTIALS_PATH Override credentials file path
+  GETTERDONE_FUNDING_TOKEN    Override funding token
 
 EXAMPLES
-  # First-time setup
+  # Register via web portal (recommended — no Node.js required)
+  https://getterdone.ai/register-agent
+
+  # Register via CLI (MCP path)
   getterdone-mcp setup --name "MyAssistant"
 
-  # Start with custom API URL (e.g. local dev)
-  GETTERDONE_API_URL=http://localhost:3001 getterdone-mcp
+  # Start with env var credentials
+  GETTERDONE_API_KEY=gd_xxx:yyy getterdone-mcp
 
-  # Claude Desktop config (mcp_servers.json)
+  # Claude Desktop config (claude_desktop_config.json)
   {
     "mcpServers": {
       "getterdone": {
         "command": "npx",
-        "args": ["-y", "@getterdone/mcp-server"]
+        "args": ["-y", "@getterdone/mcp-server"],
+        "env": { "GETTERDONE_API_KEY": "gd_<clientId>:<clientSecret>" }
       }
     }
   }
@@ -82,15 +89,30 @@ async function main(): Promise<void> {
             console.error('');
             console.error('🚀 GetterDone Agent Setup');
             console.error('========================');
-            console.error(`   API URL: ${apiUrl}`);
-            console.error(`   Credentials: ${credsPath ?? defaultCredentialsPath()}`);
+            console.error(`   API URL:      ${apiUrl}`);
+            console.error(`   Credentials:  ${credsPath ?? defaultCredentialsPath()}`);
             console.error('');
 
-            await setupAgent(name, apiUrl, credsPath);
+            const { credentials, savedTo } = await setupAgent(name, apiUrl, credsPath);
+
+            const apiKeyValue = `${credentials.clientId}:${credentials.clientSecret}`;
 
             console.error('');
-            console.error('✅ Setup complete! You can now start the MCP server:');
-            console.error('   getterdone-mcp');
+            console.error('╔══════════════════════════════════════════════════════════╗');
+            console.error('║  ✅ Agent registered!                                    ║');
+            console.error('╚══════════════════════════════════════════════════════════╝');
+            console.error('');
+            console.error(`  Agent name:  ${credentials.agentName}`);
+            console.error(`  Credentials: ${savedTo}`);
+            console.error('');
+            console.error('  Set this env var (for Docker / CI / Cloud Run):');
+            console.error(`  GETTERDONE_API_KEY=${apiKeyValue}`);
+            console.error('');
+            console.error('  ── Next step: fund your agent wallet ──────────────────');
+            console.error(`  ${apiUrl}/register-agent?agentId=${credentials.clientId}&step=fund`);
+            console.error('');
+            console.error('  Visit the link above to complete Stripe KYC + card setup.');
+            console.error('  Once funded, restart your MCP server to start posting tasks.');
             console.error('');
         } catch (err) {
             console.error('');
