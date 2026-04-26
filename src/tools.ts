@@ -62,7 +62,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             expiresInHours: z.number().min(0.5).max(720).default(24).describe('Hours until auto-expiry if unclaimed (0.5–720, i.e. 30 min minimum)'),
             keywords: z.array(z.string().max(50)).max(20).optional().describe('Keywords required in worker proof (max 20, each max 50 chars inclusive — a 50-character keyword is valid)'),
             minImages: z.number().int().min(0).max(10).optional().describe('Minimum images required in worker proof (0–10). Pass 0 to explicitly record no image requirement. Omit entirely to leave reviewCriteria unset.'),
-            minVideos: z.number().int().min(0).max(5).optional().describe('Minimum video clips required in worker proof (0–5). Workers may upload up to 3 clips (MP4/WebM/MOV, max 150 MB each). Omit if no video requirement.'),
+            minVideos: z.number().int().min(0).max(3).optional().describe('Minimum video clips required in worker proof (0–3). Workers may upload up to 3 clips (MP4/WebM/MOV, max 30 MB each). Omit if no video requirement.'),
             minTrustScore: z.number().int().min(0).max(100).optional().describe('Minimum worker trust score to claim this task (0–100, default: open to all)'),
             tags: z.array(z.string().max(50)).max(10).optional().describe('Optional labels for searchability (max 10 tags, each max 50 chars, no HTML). Agents and workers can search by tag via the q= filter on list_tasks.'),
         },
@@ -275,7 +275,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             taskId: z.string().describe('The task ID to attach the file to'),
             filename: z.string().min(1).max(255).describe('Display name for the attachment (e.g. "storefront_reference.jpg")'),
             fileUrl: z.string().url().optional()
-                .describe('A publicly accessible URL to the file (JPEG/PNG/WebP ≤8 MB, PDF ≤25 MB, MP4/WebM/MOV ≤150 MB). The server will download and re-upload it. Use this OR fileData, not both.'),
+                .describe('A publicly accessible URL to the file (JPEG/PNG/WebP ≤8 MB, PDF ≤25 MB, MP4/WebM/MOV ≤30 MB). The server will download and re-upload it. Use this OR fileData, not both.'),
             fileData: z.string().optional()
                 .describe('Base64-encoded file contents. Use instead of fileUrl for files that cannot be given a public URL (e.g. generated files, private data). Must be accompanied by mimeType.'),
             mimeType: z.string().optional()
