@@ -53,8 +53,8 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         {
             title: z.string().min(5).max(150).describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
             description: z.string().min(20).max(5000).describe('Detailed instructions for the worker'),
-            reward: z.number().min(1).max(100).describe('USD amount to pay the worker ($1–$100)'),
-            category: z.enum(['General', 'Research', 'Data Entry', 'Writing', 'Design', 'Photography', 'Delivery', 'Shopping', 'Handyman', 'Errands', 'Translation', 'Physical Task', 'Customer Service', 'Other']).default('General').describe('Task category'),
+            reward: z.number().min(5).max(100).describe('USD amount to pay the worker ($5–$100)'),
+            category: z.enum(['General', 'Research', 'Data Entry', 'Writing', 'Design', 'Photography', 'Delivery', 'Handyman', 'Errands', 'Translation', 'Customer Service', 'Verification', 'Inspection', 'Mystery Shopping', 'Promotion', 'Proofreading', 'Video', 'Voice & Audio', 'Social Media', 'Other']).default('General').describe('Task category'),
             lat: z.number().optional().describe('Location latitude (optional when remote=true)'),
             lng: z.number().optional().describe('Location longitude (optional when remote=true)'),
             locationLabel: z.string().max(200).optional().describe('Human-readable address (optional when remote=true)'),
@@ -62,7 +62,9 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             expiresInHours: z.number().min(0.5).max(720).default(24).describe('Hours until auto-expiry if unclaimed (0.5–720, i.e. 30 min minimum)'),
             keywords: z.array(z.string().max(50)).max(20).optional().describe('Keywords required in worker proof (max 20, each max 50 chars inclusive — a 50-character keyword is valid)'),
             minImages: z.number().int().min(0).max(10).optional().describe('Minimum images required in worker proof (0–10). Pass 0 to explicitly record no image requirement. Omit entirely to leave reviewCriteria unset.'),
+            minVideos: z.number().int().min(0).max(5).optional().describe('Minimum video clips required in worker proof (0–5). Workers may upload up to 3 clips (MP4/WebM/MOV, max 150 MB each). Omit if no video requirement.'),
             minTrustScore: z.number().int().min(0).max(100).optional().describe('Minimum worker trust score to claim this task (0–100, default: open to all)'),
+            tags: z.array(z.string().max(50)).max(10).optional().describe('Optional labels for searchability (max 10 tags, each max 50 chars, no HTML). Agents and workers can search by tag via the q= filter on list_tasks.'),
         },
         async (args) => wrap(() => api.createTask({
             title: args.title,
@@ -78,26 +80,57 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             expiresInHours: args.expiresInHours,
             reviewCriteria: (
                 (args.keywords != null && args.keywords.length > 0) ||
-                typeof args.minImages === 'number'
+                typeof args.minImages === 'number' ||
+                typeof args.minVideos === 'number'
             )
-                ? { keywords: args.keywords, minImages: args.minImages }
+                ? { keywords: args.keywords, minImages: args.minImages, minVideos: args.minVideos }
                 : undefined,
             minTrustScore: args.minTrustScore,
+            tags: args.tags,
         }))
     );
 
     // 2. list_tasks
     server.tool(
         'list_tasks',
-        "List the agent's own tasks, optionally filtered by status.",
+        "List this agent's tasks, filtered by status. Use status='open' or status='claimed' to monitor task progress. For a focused view of tasks awaiting proof review (the time-sensitive queue), prefer get_pending_reviews instead. For full details on a specific task (proof text, images, criteria check), call get_task next.",
         {
-            status: z.enum(['open', 'claimed', 'submitted', 'completed', 'disputed', 'contested', 'expired', 'cancelled', 'all']).default('all').describe('Filter by status'),
-            limit: z.number().min(1).max(50).default(20).describe('Max results'),
+            status: z.enum(['open', 'claimed', 'submitted', 'completed', 'disputed', 'contested', 'expired', 'cancelled', 'all']).default('all').describe("Filter by task status. Use 'submitted' to find tasks awaiting proof review (time-sensitive: 24-hour review window). Use 'open' or 'claimed' to monitor active tasks. Use 'all' for a full overview."),
+            q: z.string().optional().describe('Case-insensitive substring search across task title, description, and tags'),
+            limit: z.number().min(1).max(50).default(20).describe('Max results to return (1–50, default 20)'),
         },
-        async (args) => wrap(() => api.listTasks({ status: args.status, limit: args.limit }))
+        async (args) => wrap(() => api.listTasks({ status: args.status, agentId, q: args.q, limit: args.limit }))
     );
 
-    // 3. get_task
+    // 3. get_pending_reviews
+    server.tool(
+        'get_pending_reviews',
+        [
+            "Fetch all submitted tasks currently awaiting your approval decision — the complete pending-review queue in one call.",
+            "",
+            "Each task in the response includes:",
+            "  • proofOfWork       — worker's submitted text, image URLs, and video URLs",
+            "  • criteriaCheckResult — automated syntactic check (passed, score 0–100, per-check details)",
+            "  • imageAuthenticityResult — reverse-image-search result (clean / likely_stock / suspicious / skipped)",
+            "",
+            "⚠️  CRITICAL — 24-hour review deadline: once a task reaches 'submitted', you have exactly 24 hours",
+            "from submittedAt to call approve_task or dispute_task. After that, the platform auto-approves",
+            "and releases payment regardless of proof quality. Always process this queue promptly.",
+            "",
+            "⚠️  The criteriaCheckResult is SYNTACTIC only — a keyword 'receipt' matches even if the worker",
+            "wrote 'I could not find the receipt.' You must read the proof text yourself before deciding.",
+            "",
+            "Use this tool in your polling loop instead of list_tasks({ status: 'submitted' }) — it returns",
+            "fully hydrated tasks so you do not need follow-up get_task calls for each item.",
+            "",
+            "If imageAuthenticityResult is absent on a task, wait ~5 seconds and call get_task — the",
+            "Vision API check runs asynchronously and may not be complete yet.",
+        ].join('\n'),
+        {},
+        async () => wrap(() => api.getPendingReviews(agentId))
+    );
+
+    // 4. get_task
     server.tool(
         'get_task',
         'Get full details for a specific task, including proof-of-work submissions and dispute history.',
@@ -158,7 +191,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 8. get_balance
     server.tool(
         'get_balance',
-        "Get the agent's current wallet balance.",
+        "Get the agent's current wallet balance and pending escrow. Call this before create_task to verify sufficient funds (balance must cover reward + platform fee). Also call before fund_account to avoid over-funding. Returns: { balance, pendingEscrow, currency }.",
         {},
         async () => wrap(() => api.getBalance())
     );
@@ -178,9 +211,9 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 10. get_reputation
     server.tool(
         'get_reputation',
-        "Get an agent's reputation composite including completion rate, dispute history, and reliability tier.",
+        "Quick reputation snapshot for any agent: reliability tier (excellent/good/caution/unreliable/new), dispute rate, and worker rating average. Use this to check your own standing or vet another agent. For your own full performance dashboard (balance, task counts by status, total spend), use get_agent_metrics instead.",
         {
-            agentId: z.string().optional().describe('Agent ID. Omit to get your own reputation.'),
+            agentId: z.string().optional().describe('Agent ID to look up. Omit to get your own reputation.'),
         },
         async (args) => wrap(() => api.getReputation(args.agentId ?? agentId))
     );
@@ -188,12 +221,12 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 11. configure_webhook
     server.tool(
         'configure_webhook',
-        'Register or update a webhook URL for real-time event notifications.',
+        'Register or update a webhook URL to receive real-time task event notifications (task.claimed, task.submitted, task.completed, task.expired, etc.). IMPORTANT: the response includes a webhookSecret — store it immediately and securely. It is shown ONLY ONCE and cannot be retrieved again. Use the secret to verify HMAC-SHA256 signatures on incoming webhook payloads.',
         {
             url: z.string().url().refine(
                 (u) => u.startsWith('https://'),
                 'Webhook URL must use HTTPS'
-            ).describe('HTTPS URL to receive webhook POST requests'),
+            ).describe('Your public HTTPS endpoint to receive POST webhook events. Must be reachable from the internet.'),
         },
         async (args) => wrap(() => api.configureWebhook(args.url))
     );
@@ -229,7 +262,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 14. get_agent_metrics
     server.tool(
         'get_agent_metrics',
-        "Get comprehensive performance metrics for your own agent account: balance, task breakdown by status, total platform spend, reputation stats, and recent worker ratings.",
+        "Full performance dashboard for your own agent account: current balance, task count broken down by status (open/claimed/submitted/completed/disputed/expired), total platform spend, reputation stats, and recent worker ratings. Use this for operational reporting or when a user asks for an account summary. For a quick reliability-tier check on any agent (including other agents), use get_reputation instead.",
         {},
         async () => wrap(() => api.getAgentMetrics(agentId))
     );

@@ -192,7 +192,8 @@ export class ApiClient {
         category?: string;
         location: { lat: number; lng: number; label: string; remote?: boolean };
         expiresInHours?: number;
-        reviewCriteria?: { keywords?: string[]; minImages?: number };
+        tags?: string[];
+        reviewCriteria?: { keywords?: string[]; minImages?: number; minVideos?: number };
         minTrustScore?: number;
     }): Promise<unknown> {
         const { expiresInHours, ...rest } = body;
@@ -202,12 +203,23 @@ export class ApiClient {
         return this.request('POST', '/api/tasks', { ...rest, deadline });
     }
 
-    async listTasks(params: { status?: string; limit?: number } = {}): Promise<unknown> {
+    async listTasks(params: { status?: string; agentId?: string; q?: string; limit?: number } = {}): Promise<unknown> {
         const qs = new URLSearchParams();
         if (params.status && params.status !== 'all') qs.set('status', params.status);
+        if (params.agentId) qs.set('agentId', params.agentId);
+        if (params.q) qs.set('q', params.q);
         if (params.limit) qs.set('limit', String(params.limit));
         const query = qs.toString();
         return this.request('GET', `/api/tasks${query ? '?' + query : ''}`);
+    }
+
+    /**
+     * Fetch submitted tasks awaiting this agent's review decision.
+     * Scoped to the calling agent via agentId — never returns other agents' tasks.
+     */
+    async getPendingReviews(agentId: string): Promise<unknown> {
+        const qs = new URLSearchParams({ status: 'submitted', limit: '50', agentId });
+        return this.request('GET', `/api/tasks?${qs.toString()}`);
     }
 
     async getTask(taskId: string): Promise<unknown> {
