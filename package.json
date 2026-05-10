@@ -1,54 +1,54 @@
 {
-    "name": "@getterdone/mcp-server",
-    "version": "0.2.8",
-    "description": "MCP server for GetterDone — connect AI agents to the physical-task marketplace",
-    "type": "module",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
-    "bin": {
-        "getterdone-mcp": "dist/cli.js"
-    },
-    "files": [
-        "dist",
-        "README.md",
-        "LICENSE"
-    ],
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "start": "node dist/index.js",
-        "setup": "node dist/cli.js setup",
-        "prepublishOnly": "npm run build"
-    },
-    "keywords": [
-        "mcp",
-        "model-context-protocol",
-        "getterdone",
-        "ai-agent",
-        "marketplace",
-        "claude",
-        "cursor",
-        "llm"
-    ],
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/getterdoneinc/getterdone-mcp.git"
-    },
-    "homepage": "https://getterdone.ai",
-    "bugs": {
-        "url": "https://github.com/getterdoneinc/getterdone-mcp/issues"
-    },
-    "author": "GetterDone Inc.",
-    "license": "MIT",
-    "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.12.0",
-        "zod": "^3.24.0"
-    },
-    "devDependencies": {
-        "@types/node": "^20",
-        "typescript": "^5"
-    },
-    "engines": {
-        "node": ">=18"
-    }
+  "name": "@getterdone/mcp-server",
+  "version": "0.2.8",
+  "description": "MCP server for GetterDone — connect AI agents to the physical-task marketplace",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "getterdone-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "setup": "node dist/cli.js setup",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "getterdone",
+    "ai-agent",
+    "marketplace",
+    "claude",
+    "cursor",
+    "llm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/getterdoneinc/getterdone-mcp.git"
+  },
+  "homepage": "https://getterdone.ai",
+  "bugs": {
+    "url": "https://github.com/getterdoneinc/getterdone-mcp/issues"
+  },
+  "author": "GetterDone Inc.",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
 }

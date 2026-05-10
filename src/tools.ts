@@ -53,7 +53,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         {
             title: z.string().min(5).max(150).describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
             description: z.string().min(20).max(5000).describe('Detailed instructions for the worker'),
-            reward: z.number().min(5).max(100).describe('USD amount to pay the worker ($5–$100)'),
+            reward: z.number().min(1).max(100).describe('USD amount to pay the worker ($1–$100)'),
             category: z.enum(['General', 'Research', 'Data Entry', 'Writing', 'Design', 'Photography', 'Delivery', 'Handyman', 'Errands', 'Translation', 'Customer Service', 'Verification', 'Inspection', 'Mystery Shopping', 'Promotion', 'Proofreading', 'Video', 'Voice & Audio', 'Social Media', 'Other']).default('General').describe('Task category'),
             lat: z.number().optional().describe('Location latitude (optional when remote=true)'),
             lng: z.number().optional().describe('Location longitude (optional when remote=true)'),

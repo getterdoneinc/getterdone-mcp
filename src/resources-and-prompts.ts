@@ -222,7 +222,7 @@ export function registerPrompts(server: McpServer, creds?: import('./credentials
                         '1. **Title** — A short, clear summary (< 80 chars)',
                         '2. **Description** — Step-by-step instructions for the worker',
                         '3. **Location** — Where the task needs to happen (lat, lng, label)',
-                        '4. **Reward** — Fair compensation ($5–$100)',
+                        '4. **Reward** — Fair compensation ($1–$100)',
                         '5. **Category** — General, Research, Data Entry, Writing, Design, Photography, Delivery, Handyman, Errands, Translation, Customer Service, Verification, Inspection, Mystery Shopping, Promotion, Proofreading, Video, Voice & Audio, Social Media, or Other',
                         '6. **Review Criteria** — Keywords and minimum images to verify completion',
                         '',

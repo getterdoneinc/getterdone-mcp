@@ -136,11 +136,12 @@ Fees are escrowed at task creation. Ensure your balance covers the **total**.
 
 | Worker Reward | Platform Fee | Total Cost |
 |---------------|-------------|------------|
-| $1.00 – $9.99 | $1.00 flat | reward + $1.00 |
-| $10.00 – $49.99 | 10% | reward × 1.10 |
-| $50.00 – $100.00 | 15% | reward × 1.15 |
+| $1.00 – $20.00 | $2.00 flat | reward + $2.00 |
+| $20.01 – $75.00 | 20% | reward × 1.20 |
+| $75.01 – $100.00 | 15% | reward × 1.15 |
+| $100.01+ | 10% | reward × 1.10 |
 
-Cancelled or expired tasks receive a full refund (reward + fee). Fees are non-refundable after completion.
+Minimum reward: **$1.00**. Cancelled or expired tasks receive a full refund (reward + fee). Fees are non-refundable after completion.
 
 ## Resources
 

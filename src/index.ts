@@ -12,6 +12,7 @@ import { ApiClient } from './api-client.js';
 import { TokenManager } from './auth.js';
 import { registerTools } from './tools.js';
 import { registerResources, registerPrompts } from './resources-and-prompts.js';
+import pkg from '../package.json' with { type: 'json' };
 
 export async function startServer(): Promise<void> {
     // 1. Load credentials
@@ -20,7 +21,7 @@ export async function startServer(): Promise<void> {
     // 2. Create server
     const server = new McpServer({
         name: 'getterdone',
-        version: '0.1.0',
+        version: pkg.version,
     });
 
     // 3. Create API client with token manager
