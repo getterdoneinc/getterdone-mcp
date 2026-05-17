@@ -34,8 +34,38 @@ export function defaultCredentialsPath(): string {
 // ── Load ─────────────────────────────────────────────────
 
 /**
+ * Sentinel thrown by `loadCredentials()` when no credential source is
+ * configured at all (every env var empty AND no credentials file). Distinct
+ * from malformed-credential errors so callers can choose to boot anyway
+ * (e.g. the MCP server stays alive so the host can surface a clean
+ * tool-call-time auth error instead of a stdio handshake failure).
+ */
+export class CredentialsMissingError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'CredentialsMissingError';
+    }
+}
+
+/**
+ * Like `loadCredentials` but returns `null` when no credential source is
+ * configured at all. Still throws for malformed credentials (bad API key
+ * format, missing fields in the file, invalid JSON) — those are real
+ * config errors that should surface immediately.
+ */
+export function tryLoadCredentials(path?: string): Credentials | null {
+    try {
+        return loadCredentials(path);
+    } catch (err) {
+        if (err instanceof CredentialsMissingError) return null;
+        throw err;
+    }
+}
+
+/**
  * Load credentials from env vars first, then fall back to disk.
- * Throws if neither source provides valid credentials.
+ * Throws `CredentialsMissingError` if no source is configured, or a generic
+ * `Error` if a source is configured but malformed.
  */
 export function loadCredentials(path?: string): Credentials {
     // 1. GETTERDONE_API_KEY — combined format: gd_<clientId>:<clientSecret>
@@ -79,7 +109,7 @@ export function loadCredentials(path?: string): Credentials {
     // 3. Credentials file
     const filePath = path ?? defaultCredentialsPath();
     if (!existsSync(filePath)) {
-        throw new Error(
+        throw new CredentialsMissingError(
             'No credentials found. To register your agent, visit:\n' +
             '  https://getterdone.ai/register-agent\n\n' +
             'Once registered, set the env var shown at the end of setup:\n' +

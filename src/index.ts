@@ -3,50 +3,79 @@
  *
  * Wires credentials → auth → API client → tools/resources/prompts,
  * then connects via stdio transport.
+ *
+ * Boots cleanly even when no credentials are configured: the MCP host
+ * sees the registered tools, and any auth-requiring call returns a
+ * structured `not_configured` ApiError directing the user to set
+ * `GETTERDONE_API_KEY`. This matches the diagnostic flow documented in
+ * the GetterDone Skill §1 Step 1, which expects `get_balance` to return
+ * an auth error (not a stdio transport failure) when creds are missing.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { loadCredentials } from './credentials.js';
-import { ApiClient } from './api-client.js';
+import { tryLoadCredentials, type Credentials } from './credentials.js';
+import { ApiClient, type ApiError } from './api-client.js';
 import { TokenManager } from './auth.js';
 import { registerTools } from './tools.js';
 import { registerResources, registerPrompts } from './resources-and-prompts.js';
 import pkg from '../package.json' with { type: 'json' };
 
-export async function startServer(): Promise<void> {
-    // 1. Load credentials
-    const creds = loadCredentials();
+const NOT_CONFIGURED_MESSAGE =
+    'GetterDone MCP server has no credentials. Set GETTERDONE_API_KEY ' +
+    '(format: gd_<clientId>:<clientSecret>) in the MCP host config or ' +
+    'shell environment, then restart. Register at https://getterdone.ai/register-agent.';
 
-    // 2. Create server
+export async function startServer(): Promise<void> {
+    const creds = tryLoadCredentials();
+
     const server = new McpServer({
         name: 'getterdone',
         version: pkg.version,
     });
 
-    // 3. Create API client with token manager
-    //    We need a circular dependency: ApiClient needs getToken, TokenManager needs ApiClient.
-    //    Solve by creating ApiClient first with a placeholder, then wiring up.
-    let tokenManager: TokenManager;
+    // When creds are absent we still register everything so the host can list
+    // tools/resources/prompts. Auth-bearing tool calls fail via a structured
+    // ApiError, which tools.ts already formats into a clean MCP tool-error
+    // response (no stdio crash).
+    const effective: Credentials = creds ?? {
+        clientId: '',
+        clientSecret: '',
+        agentId: '',
+        agentName: '',
+        apiUrl: process.env.GETTERDONE_API_URL ?? 'https://getterdone.ai',
+        registeredAt: '',
+    };
 
-    const api = new ApiClient(
-        creds.apiUrl,
-        async () => tokenManager.getToken()
-    );
+    let tokenManager: TokenManager | null = null;
+    const getToken: () => Promise<string> = creds
+        ? () => tokenManager!.getToken()
+        : () => Promise.reject<string>({
+            status: 401,
+            code: 'not_configured',
+            message: NOT_CONFIGURED_MESSAGE,
+        } satisfies ApiError);
 
-    tokenManager = new TokenManager(creds.clientId, creds.clientSecret, api);
+    const api = new ApiClient(effective.apiUrl, getToken);
+    if (creds) {
+        tokenManager = new TokenManager(creds.clientId, creds.clientSecret, api);
+    }
 
-    // 4. Register tools, resources, and prompts
-    registerTools(server, api, creds.agentId, creds);
-    registerResources(server, api, creds.agentId);
-    registerPrompts(server, creds);
+    registerTools(server, api, effective.agentId, effective);
+    registerResources(server, api, effective.agentId);
+    registerPrompts(server, effective);
 
-    // 5. Connect via stdio
     const transport = new StdioServerTransport();
     await server.connect(transport);
 
-    // Log to stderr (stdout is reserved for MCP protocol)
-    console.error('🚀 GetterDone MCP Server running on stdio');
-    console.error(`   Agent: ${creds.agentName || creds.clientId}`);
-    console.error(`   API:   ${creds.apiUrl}`);
+    // stderr only — stdout is reserved for MCP protocol frames.
+    if (creds) {
+        console.error('🚀 GetterDone MCP Server running on stdio');
+        console.error(`   Agent: ${creds.agentName || creds.clientId}`);
+        console.error(`   API:   ${creds.apiUrl}`);
+    } else {
+        console.error('⚠️  GetterDone MCP Server running WITHOUT credentials.');
+        console.error('   Tools are registered but auth-requiring calls will return:');
+        console.error('   [not_configured] ' + NOT_CONFIGURED_MESSAGE);
+    }
 }
