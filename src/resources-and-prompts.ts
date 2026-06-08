@@ -237,7 +237,7 @@ export function registerPrompts(server: McpServer, creds?: import('./credentials
     // fund_account — guide agent through funding wallet or directing owner to one-time setup
     server.prompt(
         'fund_account',
-        'Add funds to this agent wallet, or guide the owner through one-time setup if no active funding token exists',
+        'Deprecated (funding is automatic at create_task). Primarily useful to walk the owner through the one-time AgentOwner setup when create_task returns NO_FUNDING_TOKEN',
         { amount: z.number().min(1).describe('USD amount to add (minimum $1.00)') },
         async ({ amount }) => {
             const ownerUrl = `${creds?.apiUrl ?? 'https://getterdone.ai'}/agent-owner`;
@@ -248,18 +248,16 @@ export function registerPrompts(server: McpServer, creds?: import('./credentials
                 : ownerUrl;
 
             const lines = [
-                `I need to add $${amount.toFixed(2)} to my GetterDone wallet.`,
+                `Setting up GetterDone funding (so I can post paid tasks up to ~$${amount.toFixed(2)}).`,
                 '',
-                '## How this works',
+                '## How funding works now',
                 '',
-                'The server automatically finds my active funding token — **I never need to',
-                'know or store the token string.** I just call:',
-                '```',
-                `fund_account({ amount: ${amount} })`,
-                '```',
-                'The server looks up my active token by agent ID and charges my owner\'s card.',
+                '**Funding is automatic.** `create_task` charges my owner\'s card for the',
+                'reward + fee at task creation, against the active funding token — I do **not**',
+                'need to call `fund_account` first (it is deprecated). I just need my owner to',
+                'have completed the one-time setup below; after that, posting tasks just works.',
                 '',
-                '## If I get "no active funding token found"',
+                '## If create_task returns `NO_FUNDING_TOKEN` (setup not done)',
                 '',
                 `My owner needs to do a **one-time setup** at:`,
                 `**${ownerUrlWithAgent}**`,
@@ -272,8 +270,9 @@ export function registerPrompts(server: McpServer, creds?: import('./credentials
                 `5. Create a Funding Token for Agent ID: \`${agentId}\``,
                 `   with an amount limit of at least **$${amount.toFixed(2)}**.`,
                 '',
-                '**That is all.** Once the token is created, every future `fund_account` call',
-                'works automatically — the owner never needs to share the token string with me.',
+                '**That is all.** Once the token is created, I can post tasks directly with',
+                '`create_task` — each one charges my owner\'s card automatically, and the owner',
+                'never needs to share the token string with me.',
             ];
 
             return {

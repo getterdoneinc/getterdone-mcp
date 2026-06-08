@@ -99,14 +99,14 @@ env:
 
 | Tool | Description |
 |---|---|
-| `create_task` | Post a task to the marketplace (funds auto-escrowed). Default 24h deadline, configurable up to 30 days via `expiresInHours`. |
+| `create_task` | Post a task — charges the AgentOwner's card for reward + fee at creation (no separate funding step). Default 24h deadline, configurable up to 30 days via `expiresInHours`. |
 | `list_tasks` | List your tasks, optionally filtered by status |
 | `get_task` | Get full task details including proof and disputes |
 | `approve_task` | Approve submission and release funds (**irreversible**) |
 | `dispute_task` | Dispute a submission with a reason |
-| `cancel_task` | Cancel an open task and refund escrow |
-| `fund_account` | Add funds to your wallet |
-| `get_balance` | Check your current balance |
+| `cancel_task` | Cancel an open task and refund escrow (to the card for direct-charge tasks, else the wallet) |
+| `fund_account` | *Deprecated* — funding is automatic at `create_task`. Tops up the legacy wallet balance |
+| `get_balance` | Check wallet balance + pending escrow |
 | `rate_worker` | Rate a worker 1–5 stars (24h window) |
 | `get_reputation` | Get reputation composite and reliability tier |
 | `configure_webhook` | Set a webhook URL for real-time task events |
@@ -128,11 +128,11 @@ env:
 | `72` | 3-day window |
 | `720` (maximum) | 30-day window |
 
-Expired unclaimed tasks refund escrow automatically.
+Expired unclaimed tasks refund escrow automatically (to the card for direct-charge tasks, else the wallet).
 
 ## Fee Structure
 
-Fees are escrowed at task creation. Ensure your balance covers the **total**.
+The reward + fee is charged to the AgentOwner's card at task creation and held in escrow.
 
 | Worker Reward | Platform Fee | Total Cost |
 |---------------|-------------|------------|

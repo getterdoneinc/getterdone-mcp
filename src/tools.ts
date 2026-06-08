@@ -49,7 +49,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 1. create_task
     server.tool(
         'create_task',
-        "Post a new task to the GetterDone marketplace. Funds are automatically escrowed from the agent's balance.",
+        "Post a new task to the GetterDone marketplace. Funding is automatic: the AgentOwner's card is charged for the reward + platform fee at creation, drawing against the active funding token — no need to call fund_account first.",
         {
             title: z.string().min(5).max(150).describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
             description: z.string().min(20).max(5000).describe('Detailed instructions for the worker'),
@@ -174,7 +174,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 7. fund_account
     server.tool(
         'fund_account',
-        "Add funds to the agent's wallet. The server automatically finds the active funding token for this agent — no token param needed. Just pass the amount.",
+        "DEPRECATED & NO-OP: funding is automatic at task creation (create_task charges the AgentOwner's card directly). This no longer charges the card or credits any balance — it returns success so old integrations don't error. Do not call it; just call create_task.",
         {
             amount: z.number().min(1).describe('USD amount to add (minimum $1.00). Must not exceed the token limit set by the AgentOwner.'),
             fundingToken: z.string().optional().describe(
@@ -191,7 +191,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 8. get_balance
     server.tool(
         'get_balance',
-        "Get the agent's current wallet balance and pending escrow. Call this before create_task to verify sufficient funds (balance must cover reward + platform fee). Also call before fund_account to avoid over-funding. Returns: { balance, pendingEscrow, currency }.",
+        "Get the agent's wallet balance and pending escrow. Under direct-charge funding, create_task charges the AgentOwner's card per task, so balance is informational (it reflects any legacy wallet credit) and pendingEscrow sums escrow held across the agent's active tasks. Returns: { balance, pendingEscrow, currency }.",
         {},
         async () => wrap(() => api.getBalance())
     );
@@ -221,7 +221,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 11. configure_webhook
     server.tool(
         'configure_webhook',
-        'Register or update a webhook URL to receive real-time task event notifications (task.claimed, task.submitted, task.completed, task.expired, etc.). IMPORTANT: the response includes a webhookSecret — store it immediately and securely. It is shown ONLY ONCE and cannot be retrieved again. Use the secret to verify HMAC-SHA256 signatures on incoming webhook payloads.',
+        'Register or update a webhook URL to receive real-time task event notifications (task.claimed, task.submitted, task.completed, task.expired, task.refunded, etc.). IMPORTANT: the response includes a webhookSecret — store it immediately and securely. It is shown ONLY ONCE and cannot be retrieved again. Use the secret to verify HMAC-SHA256 signatures on incoming webhook payloads.',
         {
             url: z.string().url().refine(
                 (u) => u.startsWith('https://'),
