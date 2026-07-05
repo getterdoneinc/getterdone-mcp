@@ -19,7 +19,16 @@ export interface ApiResponse<T = unknown> {
     success: boolean;
     data?: T;
     error?: string;
+    /** Machine-readable error code, e.g. NO_FUNDING_TOKEN, OPEN_TASK_LIMIT, TASK_CREATION_LIMIT. */
+    code?: string;
 }
+
+/**
+ * 429 codes that represent DURABLE business caps, not a transient request rate
+ * limit — retrying won't clear them, so they must surface immediately. The
+ * generic request rate limiter returns a 429 with no such code and IS retried.
+ */
+const NON_RETRYABLE_429_CODES = new Set(['OPEN_TASK_LIMIT', 'TASK_CREATION_LIMIT']);
 
 interface RetryConfig {
     maxRetries: number;
@@ -89,23 +98,29 @@ export class ApiClient {
                 return json.data as T;
             }
 
-            // Parse error
+            // Parse error — prefer the body's machine-readable `code` over the
+            // status-derived fallback so specific codes (OPEN_TASK_LIMIT, …) survive.
             let errorMessage: string;
+            let errorCode: string | undefined;
             try {
                 const errorJson = await res.json() as ApiResponse;
                 errorMessage = errorJson.error ?? `HTTP ${res.status}`;
+                errorCode = errorJson.code;
             } catch {
                 errorMessage = `HTTP ${res.status} ${res.statusText}`;
             }
 
             lastError = {
                 status: res.status,
-                code: STATUS_TO_CODE[res.status] ?? 'unknown',
+                code: errorCode ?? STATUS_TO_CODE[res.status] ?? 'unknown',
                 message: errorMessage,
             };
 
-            // Retry on 429 or 500
-            if ((res.status === 429 || res.status === 500) && attempt < this.retry.maxRetries) {
+            // Retry on 500, and on 429 ONLY when it's a transient request-rate limit —
+            // NOT a durable task-count cap (OPEN_TASK_LIMIT / TASK_CREATION_LIMIT), which
+            // retrying can't clear and which the agent should see immediately to back off.
+            const retryable429 = res.status === 429 && !(errorCode && NON_RETRYABLE_429_CODES.has(errorCode));
+            if ((retryable429 || res.status === 500) && attempt < this.retry.maxRetries) {
                 const retryAfter = res.headers.get('Retry-After');
                 const delayMs = retryAfter
                     ? parseInt(retryAfter, 10) * 1000

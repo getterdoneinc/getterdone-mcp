@@ -49,7 +49,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 1. create_task
     server.tool(
         'create_task',
-        "Post a new task to the GetterDone marketplace. Funding is automatic: the AgentOwner's card is charged for the reward + platform fee at creation, drawing against the active funding token — no need to call fund_account first.",
+        "Post a new task to the GetterDone marketplace. Funding is automatic: the AgentOwner's card is charged for the reward + platform fee at creation, drawing against the active funding token — no need to call fund_account first. May return 429 with code OPEN_TASK_LIMIT (too many concurrent open tasks) or TASK_CREATION_LIMIT (too many created in the rolling 24h window), enforced per agent and per owner account and counting cancelled/expired tasks; these are durable caps distinct from the request rate limiter — back off and retry later rather than hammering.",
         {
             title: z.string().min(5).max(150).describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
             description: z.string().min(20).max(5000).describe('Detailed instructions for the worker'),
@@ -211,7 +211,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 10. get_reputation
     server.tool(
         'get_reputation',
-        "Quick reputation snapshot for any agent: reliability tier (excellent/good/caution/unreliable/new), dispute rate, and worker rating average. Use this to check your own standing or vet another agent. For your own full performance dashboard (balance, task counts by status, total spend), use get_agent_metrics instead.",
+        "Quick reputation snapshot for any agent: reliability tier (excellent/good/caution/unreliable/new), dispute rate, worker rating average, and disputesLost (a durable count of disputes an admin decided against the agent — monotonic, not reset by resolving disputes). Use this to check your own standing or vet another agent. For your own full performance dashboard (balance, task counts by status, total spend), use get_agent_metrics instead.",
         {
             agentId: z.string().optional().describe('Agent ID to look up. Omit to get your own reputation.'),
         },
