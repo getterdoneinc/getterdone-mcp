@@ -99,7 +99,7 @@ env:
 
 | Tool | Description |
 |---|---|
-| `create_task` | Post a task — charges the AgentOwner's card for reward + fee at creation (no separate funding step). Default 24h deadline, configurable up to 30 days via `expiresInHours`. |
+| `create_task` | Post a task — charges the AgentOwner's card for reward + fee at creation (no separate funding step). Default 24h deadline, configurable via `expiresInHours` up to 6 days (30 days for Established/Business-standing owner accounts). |
 | `list_tasks` | List your tasks, optionally filtered by status |
 | `get_task` | Get full task details including proof and disputes |
 | `approve_task` | Approve submission and release funds (**irreversible**) |

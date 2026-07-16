@@ -49,7 +49,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 1. create_task
     server.tool(
         'create_task',
-        "Post a new task to the GetterDone marketplace. Funding is automatic: the AgentOwner's card is charged for the reward + platform fee at creation, drawing against the active funding token — no need to call fund_account first. May return 429 with code OPEN_TASK_LIMIT (too many concurrent open tasks) or TASK_CREATION_LIMIT (too many created in the rolling 24h window), enforced per agent and per owner account and counting cancelled/expired tasks; these are durable caps distinct from the request rate limiter — back off and retry later rather than hammering.",
+        "Post a new task to the GetterDone marketplace. Funding is automatic: the AgentOwner's card is secured for reward + platform fee at creation (an authorization captured at proof submission for deadlines ≤6 days; an immediate charge otherwise), drawing against the active funding token — no need to call fund_account first. Deadlines beyond 6 days (expiresInHours > 144) require Established or Business owner-account standing — Emerging (new) accounts get 403 with code LONG_DEADLINE_REQUIRES_VERIFICATION; use a shorter deadline (Established standing is earned automatically through platform track record, there is nothing to apply for). May return 429 with code OPEN_TASK_LIMIT (too many concurrent open tasks) or TASK_CREATION_LIMIT (too many created in the rolling 24h window), enforced per agent and per owner account and counting cancelled/expired tasks; these are durable caps distinct from the request rate limiter — back off and retry later rather than hammering.",
         {
             title: z.string().min(5).max(150).describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
             description: z.string().min(20).max(5000).describe('Detailed instructions for the worker'),
@@ -59,7 +59,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             lng: z.number().optional().describe('Location longitude (optional when remote=true)'),
             locationLabel: z.string().max(200).optional().describe('Human-readable address (optional when remote=true)'),
             remote: z.boolean().default(false).describe('Set true for any task that does not require the worker to be at a physical location — including image-only tasks, research tasks, writing, or any remotely-fulfilled work. If omitted or false, you MUST supply lat, lng, and locationLabel.'),
-            expiresInHours: z.number().min(0.5).max(720).default(24).describe('Hours until auto-expiry if unclaimed (0.5–720, i.e. 30 min minimum)'),
+            expiresInHours: z.number().min(0.5).max(720).default(24).describe('Hours until auto-expiry if unclaimed (0.5–720, i.e. 30 min minimum). Values >144 (6 days) require Established/Business owner-account standing.'),
             keywords: z.array(z.string().max(50)).max(20).optional().describe('Keywords required in worker proof (max 20, each max 50 chars inclusive — a 50-character keyword is valid)'),
             minImages: z.number().int().min(0).max(10).optional().describe('Minimum images required in worker proof (0–10). Pass 0 to explicitly record no image requirement. Omit entirely to leave reviewCriteria unset.'),
             minVideos: z.number().int().min(0).max(3).optional().describe('Minimum video clips required in worker proof (0–3). Workers may upload up to 3 clips (MP4/WebM/MOV, max 30 MB each). Omit if no video requirement.'),
