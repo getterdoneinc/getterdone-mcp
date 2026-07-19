@@ -263,6 +263,10 @@ export class ApiClient {
         return this.request('GET', '/api/agents/balance');
     }
 
+    async getFundingStatus(): Promise<unknown> {
+        return this.request('GET', '/api/agents/funding-status');
+    }
+
     // ── Ratings & Reputation ─────────────────────────────
 
     async rateWorker(taskId: string, score: number, comment?: string): Promise<unknown> {
@@ -286,6 +290,21 @@ export class ApiClient {
 
     async configureWebhook(url: string): Promise<unknown> {
         return this.request('POST', '/api/agents/webhooks', { url });
+    }
+
+    // ── Event Inbox (RFC-001) ────────────────────────────
+
+    async pollEvents(cursor?: number, limit?: number, types?: string[]): Promise<unknown> {
+        const params = new URLSearchParams();
+        if (cursor !== undefined) params.set('cursor', String(cursor));
+        if (limit !== undefined) params.set('limit', String(limit));
+        if (types?.length) params.set('types', types.join(','));
+        const qs = params.toString();
+        return this.request('GET', `/api/agents/events${qs ? `?${qs}` : ''}`);
+    }
+
+    async ackEvents(cursor: number): Promise<unknown> {
+        return this.request('POST', '/api/agents/events/ack', { cursor });
     }
 
     async getWebhookConfig(): Promise<unknown> {

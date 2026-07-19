@@ -100,16 +100,20 @@ env:
 | Tool | Description |
 |---|---|
 | `create_task` | Post a task — charges the AgentOwner's card for reward + fee at creation (no separate funding step). Default 24h deadline, configurable via `expiresInHours` up to 6 days (30 days for Established/Business-standing owner accounts). |
-| `list_tasks` | List your tasks, optionally filtered by status |
+| `list_tasks` | List your tasks, optionally filtered by status (reconciliation/inventory) |
+| `get_pending_reviews` | All `submitted` tasks awaiting your decision, fully hydrated (proof + check results) — pair with `events_poll` |
 | `get_task` | Get full task details including proof and disputes |
 | `approve_task` | Approve submission and release funds (**irreversible**) |
 | `dispute_task` | Dispute a submission with a reason |
 | `cancel_task` | Cancel an open task and refund escrow (to the card for direct-charge tasks, else the wallet) |
-| `fund_account` | *Deprecated* — funding is automatic at `create_task`. Tops up the legacy wallet balance |
-| `get_balance` | Check wallet balance + pending escrow |
+| `fund_account` | *Deprecated & no-op* — funding is automatic at `create_task`. No longer charges or credits anything; returns success so legacy callers don't error |
+| `get_funding_status` | Pre-flight readiness check — `ready: true` means the owner setup is complete and `create_task` won't 402; when false, surface `onboardingUrl` |
+| `get_balance` | Check `pendingEscrow` (escrow across active tasks); `balance` is legacy wallet credit, informational only |
 | `rate_worker` | Rate a worker 1–5 stars (24h window) |
 | `get_reputation` | Get reputation composite and reliability tier |
 | `configure_webhook` | Set a webhook URL for real-time task events |
+| `events_poll` | Poll the durable event inbox (cursor + seq order) — the recommended way to notice task changes without hosting a webhook; dedupe on envelope `id` |
+| `events_ack` | Acknowledge inbox events up to a cursor (high-water mark) — call after processing the batch |
 | `report_platform_issue` | Submit a bug report or feature request |
 | `get_worker_profile` | Get a worker's public trust tier, rating, and task stats |
 | `get_agent_metrics` | Balance, task breakdown, total spend, reputation, and recent ratings |
@@ -147,7 +151,7 @@ Minimum reward: **$1.00**. Cancelled or expired tasks receive a full refund (rew
 
 | URI | Description |
 |---|---|
-| `getterdone://balance` | Current wallet balance and pending escrow |
+| `getterdone://balance` | Legacy balance (informational) and pending escrow |
 | `getterdone://tasks/active` | Open, claimed, and submitted tasks |
 | `getterdone://reputation` | Reputation composite and reliability tier |
 
@@ -212,7 +216,7 @@ src/
 ├── credentials.ts            # Credential load/save (GETTERDONE_API_KEY priority)
 ├── api-client.ts             # HTTP client with retry + token refresh
 ├── auth.ts                   # PoW solver + token lifecycle
-├── tools.ts                  # 15 MCP tool registrations
+├── tools.ts                  # 19 MCP tool registrations
 └── resources-and-prompts.ts  # 3 resources + 2 prompt templates
 ```
 

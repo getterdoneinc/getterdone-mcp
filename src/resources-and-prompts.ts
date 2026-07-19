@@ -17,7 +17,7 @@ export function registerResources(server: McpServer, api: ApiClient, agentId: st
     server.resource(
         'balance',
         'getterdone://balance',
-        { description: "Agent's current wallet balance and pending escrow" },
+        { description: "Agent's legacy wallet balance (informational) and pending escrow" },
         async () => {
             try {
                 const data = await api.getBalance();
@@ -196,8 +196,9 @@ export function registerPrompts(server: McpServer, creds?: import('./credentials
                         '',
                         `Then call: dispute_task({ taskId: "${taskId}", reason: "<my reason>" })`,
                         '',
-                        'The worker may contest the dispute. If they do, show me their response and ask',
-                        'whether I want to maintain or withdraw the dispute.',
+                        'The worker may contest the dispute. A dispute cannot be withdrawn: if they',
+                        'contest, show me their rebuttal — the case goes to GetterDone review. If they',
+                        'do not contest within 24h it auto-resolves in my favor.',
                     ].join('\n'),
                 },
             }],

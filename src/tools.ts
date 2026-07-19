@@ -1,5 +1,5 @@
 /**
- * Register all 12 MCP tools on the server instance.
+ * Register all 19 MCP tools on the server instance.
  */
 
 import { z } from 'zod';
@@ -164,7 +164,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 6. cancel_task
     server.tool(
         'cancel_task',
-        'Cancel an open task and refund escrowed funds. Cannot cancel claimed or submitted tasks.',
+        'Cancel an open task. For normal (≤6-day-deadline) tasks the card hold is released — nothing was ever charged; long-deadline charged-at-posting tasks are refunded to the card. Cannot cancel claimed or submitted tasks.',
         {
             taskId: z.string().describe('The task ID to cancel'),
         },
@@ -196,6 +196,14 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         async () => wrap(() => api.getBalance())
     );
 
+    // 8b. get_funding_status
+    server.tool(
+        'get_funding_status',
+        "Pre-flight readiness check before creating paid tasks — use this (not get_balance) to verify setup. A successful call proves your credentials are valid; ready:true means the Agent Owner setup is complete (KYC + vaulted card + active funding token) and create_task will not fail with 402 NO_FUNDING_TOKEN. When ready is false, surface onboardingUrl to your developer — it deep-links the one-time Agent Owner setup pre-filled for this agent. Returns: { ready, hasActiveFundingToken, ownerKycStatus, onboardingUrl? }.",
+        {},
+        async () => wrap(() => api.getFundingStatus())
+    );
+
     // 9. rate_worker
     server.tool(
         'rate_worker',
@@ -221,7 +229,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 11. configure_webhook
     server.tool(
         'configure_webhook',
-        'Register or update a webhook URL to receive real-time task event notifications (task.claimed, task.submitted, task.completed, task.expired, task.refunded, etc.). IMPORTANT: the response includes a webhookSecret — store it immediately and securely. It is shown ONLY ONCE and cannot be retrieved again. Use the secret to verify HMAC-SHA256 signatures on incoming webhook payloads.',
+        'Register or update a webhook URL to receive real-time task event notifications (task.claimed, task.submitted, task.completed, task.declined, task.expired, task.refunded, task.expiring_soon, etc. — expiry emits task.expired; task.refunded covers cancel/dispute-refund/closure). Payloads carry an eventId shared with the events_poll inbox for dual-channel dedupe. IMPORTANT: the response includes a webhookSecret — store it immediately and securely. It is shown ONLY ONCE and cannot be retrieved again. Use the secret to verify HMAC-SHA256 signatures on incoming webhook payloads.',
         {
             url: z.string().url().refine(
                 (u) => u.startsWith('https://'),
@@ -229,6 +237,28 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             ).describe('Your public HTTPS endpoint to receive POST webhook events. Must be reachable from the internet.'),
         },
         async (args) => wrap(() => api.configureWebhook(args.url))
+    );
+
+    // 11b. events_poll — Agent Event Inbox (RFC-001)
+    server.tool(
+        'events_poll',
+        "Poll your durable event inbox — the no-webhook way to never miss a task event. Returns events (task.claimed, task.submitted, task.completed, task.disputed, task.contested, task.expiring_soon, …) in guaranteed per-agent order with a monotonic seq. Contract: call with no cursor to resume from your last ack (unacked events re-appear — deduplicate on the envelope id); process the batch; then call events_ack with the returned nextCursor. Events are THIN (type + task pointer + hints) — fetch fresh details with get_task. hasMore=true means poll again immediately. A 410 CURSOR_EXPIRED means your cursor predates the 30-day retention — resume from the oldestAvailableCursor it returns and treat the gap as missed events.",
+        {
+            cursor: z.number().int().min(0).optional().describe('Resume after this seq. Omit to resume from your last acked cursor.'),
+            limit: z.number().int().min(1).max(100).optional().describe('Max events to scan (default 50).'),
+            types: z.array(z.string()).optional().describe("Only return these event types (e.g. ['task.submitted']). Filtered events still advance nextCursor."),
+        },
+        async (args) => wrap(() => api.pollEvents(args.cursor, args.limit, args.types))
+    );
+
+    // 11c. events_ack
+    server.tool(
+        'events_ack',
+        'Acknowledge inbox events up to a cursor (high-water mark): everything with seq ≤ cursor is marked consumed, so your next cursor-less events_poll resumes after it. Call this with the nextCursor from events_poll AFTER you have processed that batch — acking before processing risks losing events if you crash. Acking a lower cursor than before is a harmless no-op.',
+        {
+            cursor: z.number().int().min(0).describe('The nextCursor value from the events_poll batch you just finished processing.'),
+        },
+        async (args) => wrap(() => api.ackEvents(args.cursor))
     );
 
     // 12. report_platform_issue
