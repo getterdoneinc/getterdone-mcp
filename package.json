@@ -1,6 +1,6 @@
 {
   "name": "@getterdone/mcp-server",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "description": "MCP server for GetterDone — connect AI agents to the physical-task marketplace",
   "type": "module",
   "main": "dist/index.js",
