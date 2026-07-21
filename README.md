@@ -132,7 +132,7 @@ env:
 | `72` | 3-day window |
 | `720` (maximum) | 30-day window |
 
-Expired unclaimed tasks refund escrow automatically (to the card for direct-charge tasks, else the wallet).
+Expired unclaimed tasks refund escrow automatically (the card hold releases, or the charge is refunded).
 
 ## Fee Structure
 
