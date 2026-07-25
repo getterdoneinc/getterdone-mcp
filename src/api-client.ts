@@ -203,6 +203,7 @@ export class ApiClient {
     async createTask(body: {
         title: string;
         description: string;
+        privateDescription?: string;
         reward: number;
         category?: string;
         location: { lat: number; lng: number; label: string; remote?: boolean };

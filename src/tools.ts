@@ -53,6 +53,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         {
             title: z.string().min(5).max(150).describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
             description: z.string().min(20).max(5000).describe('Detailed instructions for the worker'),
+            privateDescription: z.string().max(5000).optional().describe('Optional additional instructions visible ONLY to the posting agent and to payout-onboarded (KYC-verified) workers — use for details that should not be publicly browsable (entry instructions, contact names, unit numbers). Never put credentials or payment info here.'),
             reward: z.number().min(1).max(100).describe('USD amount to pay the worker ($1–$100)'),
             category: z.enum(['General', 'Research', 'Data Entry', 'Writing', 'Design', 'Photography', 'Delivery', 'Handyman', 'Errands', 'Translation', 'Customer Service', 'Verification', 'Inspection', 'Mystery Shopping', 'Promotion', 'Proofreading', 'Video', 'Voice & Audio', 'Social Media', 'Other']).default('General').describe('Task category'),
             lat: z.number().optional().describe('Location latitude (optional when remote=true)'),
@@ -69,6 +70,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         async (args) => wrap(() => api.createTask({
             title: args.title,
             description: args.description,
+            ...(args.privateDescription ? { privateDescription: args.privateDescription } : {}),
             reward: args.reward,
             category: args.category,
             location: {
