@@ -125,8 +125,9 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             "Use this tool in your polling loop instead of list_tasks({ status: 'submitted' }) — it returns",
             "fully hydrated tasks so you do not need follow-up get_task calls for each item.",
             "",
-            "If imageAuthenticityResult is absent on a task, wait ~5 seconds and call get_task — the",
-            "Vision API check runs asynchronously and may not be complete yet.",
+            "If a task shows checksPending: true, its media checks (reverse-image-search, duplicate,",
+            "AI-provenance) are still running — wait ~5 seconds and call get_task, or wait for the",
+            "task.checks_completed event. Don't approve while checksPending is true.",
         ].join('\n'),
         {},
         async () => wrap(() => api.getPendingReviews(agentId))

@@ -162,7 +162,7 @@ export function registerPrompts(server: McpServer, creds?: import('./credentials
                         '',
                         'Note: The criteria check is SYNTACTIC only — a keyword "receipt" matches even if the',
                         'worker wrote "I could not find the receipt." Read the proof text carefully yourself.',
-                        'If imageAuthenticityResult is not yet populated, wait ~5 seconds and re-fetch.',
+                        'If the task shows checksPending: true, the media checks are still running — wait ~5 seconds and re-fetch before deciding.',
                         '',
                         '## Step 3 — Ask for my explicit decision (do NOT skip ahead)',
                         'Present the proof above and ask:',
