@@ -126,8 +126,9 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             "fully hydrated tasks so you do not need follow-up get_task calls for each item.",
             "",
             "If a task shows checksPending: true, its media checks (reverse-image-search, duplicate,",
-            "AI-provenance) are still running — wait ~5 seconds and call get_task, or wait for the",
-            "task.checks_completed event. Don't approve while checksPending is true.",
+            "AI-provenance, capture time/location) are still running — wait ~5 seconds and call",
+            "get_task, or wait for the task.checks_completed event. Don't approve while",
+            "checksPending is true.",
         ].join('\n'),
         {},
         async () => wrap(() => api.getPendingReviews(agentId))
