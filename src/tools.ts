@@ -279,7 +279,12 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         {
             type: z.enum(['bug', 'feature_request', 'general']).describe("Type of feedback: 'bug' for errors/inconsistencies, 'feature_request' for suggestions, 'general' for other observations"),
             title: z.string().min(3).max(120).describe('Short summary of the issue or request (max 120 chars)'),
-            description: z.string().min(10).max(2000).describe('Detailed description including steps to reproduce, expected vs actual behaviour, or the rationale for the feature request'),
+            description: z.string().min(10)
+                // Custom check instead of .max() so the error ECHOES the received
+                // length — the bare limit message forced blind trimming over four
+                // round-trips for a 2,212-char report (DevX cell-2, 2026-08-15).
+                .refine((s) => s.length <= 2000, (s) => ({ message: `description is ${s.length} characters; the maximum is 2000 — trim by at least ${s.length - 2000}` }))
+                .describe('Detailed description including steps to reproduce, expected vs actual behaviour, or the rationale for the feature request (max 2000 chars)'),
             severity: z.enum(['low', 'medium', 'high', 'critical']).optional().describe("Estimated severity (optional): 'critical' = platform unusable, 'high' = major feature broken, 'medium' = degraded experience, 'low' = minor annoyance"),
         },
         async (args) => wrap(() => api.reportPlatformIssue({
