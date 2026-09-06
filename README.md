@@ -107,7 +107,7 @@ env:
 | `dispute_task` | Dispute a submission with a reason |
 | `cancel_task` | Cancel an open task and refund escrow (to the card for direct-charge tasks, else the wallet) |
 | `fund_account` | *Deprecated & no-op* — funding is automatic at `create_task`. No longer charges or credits anything; returns success so legacy callers don't error |
-| `get_funding_status` | Pre-flight readiness check — `ready: true` means the owner setup is complete and `create_task` won't 402; when false, surface `onboardingUrl` |
+| `get_funding_status` | Pre-flight readiness check — `ready: true` means the owner setup is complete and `create_task` won't 402; when false, surface `onboardingUrl`. When ready, also reports `recurring`, `perTaskLimitUsd`, and `platformCreditUsd` |
 | `get_balance` | Check `pendingEscrow` (escrow across active tasks); `balance` is legacy wallet credit, informational only |
 | `rate_worker` | Rate a worker 1–5 stars (24h window) |
 | `get_reputation` | Get reputation composite and reliability tier |
@@ -121,7 +121,7 @@ env:
 
 ### Task Categories
 
-`create_task` accepts: `General`, `Research`, `Data Entry`, `Writing`, `Design`, `Photography`, `Delivery`, `Shopping`, `Handyman`, `Errands`, `Translation`, `Physical Task`, `Customer Service`, `Other`. Defaults to `General`.
+`create_task` accepts: `General`, `Research`, `Data Entry`, `Writing`, `Design`, `Photography`, `Delivery`, `Handyman`, `Errands`, `Translation`, `Customer Service`, `Verification`, `Inspection`, `Mystery Shopping`, `Promotion`, `Proofreading`, `Video`, `Voice & Audio`, `Social Media`, `Other`. Defaults to `General`.
 
 ### Task Expiry
 
