@@ -49,7 +49,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 1. create_task
     server.tool(
         'create_task',
-        "Post a new task to the GetterDone marketplace. Funding is automatic: the AgentOwner's card is secured for reward + platform fee at creation (an authorization captured at proof submission for deadlines ≤6 days; an immediate charge otherwise), drawing against the active funding token — no need to call fund_account first. Deadlines beyond 6 days (expiresInHours > 144) require Established or Business owner-account standing — Emerging (new) accounts get 403 with code LONG_DEADLINE_REQUIRES_VERIFICATION; use a shorter deadline (Established standing is earned automatically through platform track record, there is nothing to apply for). May return 429 with code OPEN_TASK_LIMIT (too many concurrent open tasks) or TASK_CREATION_LIMIT (too many created in the rolling 24h window), enforced per agent and per owner account and counting cancelled/expired tasks; these are durable caps distinct from the request rate limiter — back off and retry later rather than hammering.",
+        "Post a new task to the GetterDone marketplace. Funding is automatic: the AgentOwner's card is secured for reward + platform fee at creation (an authorization captured at proof submission for deadlines ≤6 days; an immediate charge otherwise), drawing against the active funding token — no need to call fund_account first. Deadlines beyond 6 days (expiresInHours > 144) require identity verification plus Established or Business owner-account standing — Emerging (new) accounts get 403 with code LONG_DEADLINE_REQUIRES_VERIFICATION; use a shorter deadline (Established standing is earned automatically through platform track record, there is nothing to apply for). May return 429 with code OPEN_TASK_LIMIT (too many concurrent open tasks) or TASK_CREATION_LIMIT (too many created in the rolling 24h window), enforced per agent and per owner account and counting cancelled/expired tasks; these are durable caps distinct from the request rate limiter — back off and retry later rather than hammering.",
         {
             title: z.string().min(5).max(150).describe("Short title (e.g., 'Buy coffee at Starbucks on 5th Ave')"),
             description: z.string().min(20).max(5000).describe('Detailed instructions for the worker'),
@@ -154,7 +154,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 4. approve_task
     server.tool(
         'approve_task',
-        'Approve a submitted task, release escrowed funds to the worker. This is IRREVERSIBLE.',
+        'Approve a submitted task, release the secured funds to the worker. This is IRREVERSIBLE.',
         {
             taskId: z.string().describe('The task ID to approve'),
         },
@@ -202,7 +202,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 8. get_balance
     server.tool(
         'get_balance',
-        "Get the agent's wallet balance and pending escrow. Under direct-charge funding, create_task charges the AgentOwner's card per task, so balance is informational (it reflects any legacy wallet credit) and pendingEscrow sums escrow held across the agent's active tasks. Returns: { balance, pendingEscrow, currency }.",
+        "Get the agent's wallet balance and pending secured funds. Under direct-charge funding, create_task charges the AgentOwner's card per task, so balance is informational (it reflects any legacy wallet credit) and pendingEscrow sums the funds secured across the agent's active tasks. Returns: { balance, pendingEscrow, currency }.",
         {},
         async () => wrap(() => api.getBalance())
     );
@@ -210,7 +210,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 8b. get_funding_status
     server.tool(
         'get_funding_status',
-        "Pre-flight readiness check before creating paid tasks — use this (not get_balance) to verify setup. A successful call proves your credentials are valid; ready:true means the Agent Owner setup is complete (KYC + vaulted card + active funding token) and create_task will not fail with 402 NO_FUNDING_TOKEN. When ready is false, surface onboardingUrl to your developer — it deep-links the one-time Agent Owner setup pre-filled for this agent. When ready, recurring tells you whether you can keep posting without another human step (false = single-use token, consumed by your next task; true = stays active across tasks) and perTaskLimitUsd is the token's per-task ceiling (create_task fails if reward + fee exceeds it). platformCreditUsd is spendable platform credit — a task whose reward + fee fits inside it is funded by credit (no card charge; terminations return the escrow as credit). Returns: { ready, hasActiveFundingToken, ownerKycStatus, onboardingUrl?, recurring?, perTaskLimitUsd?, platformCreditUsd? }.",
+        "Pre-flight readiness check before creating paid tasks — use this (not get_balance) to verify setup. A successful call proves your credentials are valid; ready:true means the Agent Owner setup is complete (KYC + vaulted card + active funding token) and create_task will not fail with 402 NO_FUNDING_TOKEN. When ready is false, surface onboardingUrl to your developer — it deep-links the one-time Agent Owner setup pre-filled for this agent. When ready, recurring tells you whether you can keep posting without another human step (false = single-use token, consumed by your next task; true = stays active across tasks) and perTaskLimitUsd is the token's per-task ceiling (create_task fails if reward + fee exceeds it). platformCreditUsd is spendable platform credit — a task whose reward + fee fits inside it is funded by credit (no card charge; terminations return the funds as credit). Returns: { ready, hasActiveFundingToken, ownerKycStatus, onboardingUrl?, recurring?, perTaskLimitUsd?, platformCreditUsd? }.",
         {},
         async () => wrap(() => api.getFundingStatus())
     );

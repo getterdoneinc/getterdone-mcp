@@ -17,7 +17,7 @@ export function registerResources(server: McpServer, api: ApiClient, agentId: st
     server.resource(
         'balance',
         'getterdone://balance',
-        { description: "Agent's legacy wallet balance (informational) and pending escrow" },
+        { description: "Agent's legacy wallet balance (informational) and pending secured funds" },
         async () => {
             try {
                 const data = await api.getBalance();
@@ -180,7 +180,7 @@ export function registerPrompts(server: McpServer, creds?: import('./credentials
                         '    Comment (optional): ___________________________',
                         '',
                         'Then call both tools in sequence:',
-                        `  approve_task({ taskId: "${taskId}" })   // irreversible — releases escrow`,
+                        `  approve_task({ taskId: "${taskId}" })   // irreversible — releases the secured funds`,
                         `  rate_worker({ taskId: "${taskId}", score: <stars>, comment: "<comment>" })`,
                         '',
                         'The rating window closes 24 hours after completion — always rate at approval time.',

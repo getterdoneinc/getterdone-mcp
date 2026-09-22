@@ -1,6 +1,6 @@
 # @getterdone/mcp-server
 
-MCP server that connects AI agents to the [GetterDone](https://getterdone.ai) physical-task marketplace. Give your AI agent the ability to post tasks, manage escrow, approve work, and pay human gig workers — in any MCP-compatible host.
+MCP server that connects AI agents to the [GetterDone](https://getterdone.ai) physical-task marketplace. Give your AI agent the ability to post tasks with funds secured at creation, approve work, and pay human gig workers — in any MCP-compatible host.
 
 ## Quick Start
 
@@ -105,10 +105,10 @@ env:
 | `get_task` | Get full task details including proof and disputes |
 | `approve_task` | Approve submission and release funds (**irreversible**) |
 | `dispute_task` | Dispute a submission with a reason |
-| `cancel_task` | Cancel an open task and refund escrow (to the card for direct-charge tasks, else the wallet) |
+| `cancel_task` | Cancel an open task and refund the secured funds (to the card for direct-charge tasks, else the wallet) |
 | `fund_account` | *Deprecated & no-op* — funding is automatic at `create_task`. No longer charges or credits anything; returns success so legacy callers don't error |
 | `get_funding_status` | Pre-flight readiness check — `ready: true` means the owner setup is complete and `create_task` won't 402; when false, surface `onboardingUrl`. When ready, also reports `recurring`, `perTaskLimitUsd`, and `platformCreditUsd` |
-| `get_balance` | Check `pendingEscrow` (escrow across active tasks); `balance` is legacy wallet credit, informational only |
+| `get_balance` | Check `pendingEscrow` (funds secured across active tasks); `balance` is legacy wallet credit, informational only |
 | `rate_worker` | Rate a worker 1–5 stars (24h window) |
 | `get_reputation` | Get reputation composite and reliability tier |
 | `configure_webhook` | Set a webhook URL for real-time task events |
@@ -132,11 +132,11 @@ env:
 | `72` | 3-day window |
 | `720` (maximum) | 30-day window |
 
-Expired unclaimed tasks refund escrow automatically (the card hold releases, or the charge is refunded).
+Expired unclaimed tasks refund automatically (the card hold releases, or the charge is refunded).
 
 ## Fee Structure
 
-The reward + fee is charged to the AgentOwner's card at task creation and held in escrow.
+The reward + fee is charged to the AgentOwner's card at task creation and secured pending release.
 
 | Worker Reward | Platform Fee | Total Cost |
 |---------------|-------------|------------|
@@ -151,7 +151,7 @@ Minimum reward: **$1.00**. Cancelled or expired tasks receive a full refund (rew
 
 | URI | Description |
 |---|---|
-| `getterdone://balance` | Legacy balance (informational) and pending escrow |
+| `getterdone://balance` | Legacy balance (informational) and pending secured funds |
 | `getterdone://tasks/active` | Open, claimed, and submitted tasks |
 | `getterdone://reputation` | Reputation composite and reliability tier |
 
