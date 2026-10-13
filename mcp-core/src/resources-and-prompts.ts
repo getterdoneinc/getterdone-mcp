@@ -6,8 +6,8 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ApiClient } from './api-client.js';
-import { z } from 'zod';
+import type { ApiClient } from './api-client';
+import { z } from 'zod/v4';
 
 // ── Resources ────────────────────────────────────────────
 
@@ -102,10 +102,8 @@ export function registerResources(server: McpServer, api: ApiClient, agentId: st
         { description: 'Latest GetterDone Skill document (SKILL.md). Re-read at session start to detect version updates.' },
         async () => {
             try {
-                const apiUrl = (api as unknown as { baseUrl?: string }).baseUrl
-                    ?? 'https://getterdone.ai';
-                const res = await fetch(`${apiUrl}/api/docs/spec?doc=skill`);
-                const text = await res.text();
+                // Through the client so the hosted server's loopback hop headers ride along.
+                const text = await api.getText('/api/docs/spec?doc=skill');
                 return {
                     contents: [{
                         uri: 'getterdone://skill',
@@ -128,7 +126,13 @@ export function registerResources(server: McpServer, api: ApiClient, agentId: st
 
 // ── Prompts ──────────────────────────────────────────────
 
-export function registerPrompts(server: McpServer, creds?: import('./credentials.js').Credentials): void {
+/** What the prompts need from the host: where the dashboard lives and which agent this is. */
+export interface PromptContext {
+    apiUrl?: string;
+    agentId?: string;
+}
+
+export function registerPrompts(server: McpServer, creds?: PromptContext): void {
 
     // review_submission — guide agent through reviewing a worker's proof
     server.prompt(

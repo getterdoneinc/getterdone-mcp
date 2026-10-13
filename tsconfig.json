@@ -1,18 +1,21 @@
 {
     "compilerOptions": {
         "target": "ES2022",
-        "module": "NodeNext",
-        "moduleResolution": "NodeNext",
-        "outDir": "dist",
-        "rootDir": "src",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "noEmit": true,
+        "rootDir": "..",
+        "paths": {
+            "@getterdone/mcp-core": ["../mcp-core/src/index.ts", "./mcp-core/src/index.ts"],
+            "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
+            "zod/v4": ["./node_modules/zod/v4/index.d.ts"],
+            "zod/v4/core": ["./node_modules/zod/v4/core/index.d.ts"]
+        },
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "resolveJsonModule": true,
-        "declaration": true,
-        "declarationMap": true,
-        "sourceMap": true
+        "resolveJsonModule": true
     },
     "include": [
         "src/**/*.ts"

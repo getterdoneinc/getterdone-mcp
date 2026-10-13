@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * GetterDone MCP Server — CLI entry point.
  *
@@ -12,6 +10,7 @@
 import { setupAgent } from './auth.js';
 import { startServer } from './index.js';
 import { defaultCredentialsPath } from './credentials.js';
+// NOTE: the `#!/usr/bin/env node` shebang is added by build.mjs (esbuild banner).
 
 const HELP = `
 GetterDone MCP Server — connect AI agents to the physical-task marketplace

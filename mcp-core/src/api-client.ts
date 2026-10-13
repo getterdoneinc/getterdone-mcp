@@ -13,6 +13,12 @@ export interface ApiError {
     status: number;
     code: string;
     message: string;
+    /**
+     * Human next step for a 402 NO_FUNDING_TOKEN (and get_funding_status):
+     * the dashboard deep link the account owner opens to fund this agent /
+     * connection. Surfaced verbatim in the tool error text (ISSUE-032).
+     */
+    onboardingUrl?: string;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -21,6 +27,8 @@ export interface ApiResponse<T = unknown> {
     error?: string;
     /** Machine-readable error code, e.g. NO_FUNDING_TOKEN, OPEN_TASK_LIMIT, TASK_CREATION_LIMIT. */
     code?: string;
+    /** 402 NO_FUNDING_TOKEN: dashboard deep link for the account owner. */
+    onboardingUrl?: string;
 }
 
 /**
@@ -49,21 +57,94 @@ const STATUS_TO_CODE: Record<number, string> = {
     500: 'server_error',
 };
 
+// ── Task bodies ──────────────────────────────────────────
+
+export interface CreateTaskBody {
+    title: string;
+    description: string;
+    privateDescription?: string;
+    reward: number;
+    category?: string;
+    location: { lat: number; lng: number; label: string; remote?: boolean };
+    expiresInHours?: number;
+    tags?: string[];
+    reviewCriteria?: { keywords?: string[]; minImages?: number; minVideos?: number };
+    minTrustScore?: number;
+}
+
+/**
+ * MCP body → REST body. `expiresInHours` is forwarded as-is (the route turns
+ * it into the deadline at creation time) so the quote and the create hash the
+ * same input and the confirmationToken binds.
+ */
+function toTaskRequest<T extends CreateTaskBody>(body: T): T {
+    return body;
+}
+
 // ── Client ───────────────────────────────────────────────
 
+export interface ApiClientOptions {
+    /** User-Agent sent on every request (default `@getterdone/mcp-core`). */
+    userAgent?: string;
+    /**
+     * Extra headers on every request. The hosted /mcp route uses this to
+     * carry the origin-lock header and the caller's real IP over the loopback
+     * hop to the REST routes.
+     */
+    extraHeaders?: Record<string, string>;
+    /** Path of the OAuth token endpoint (default `/api/auth/agent/token`). */
+    tokenPath?: string;
+    retry?: RetryConfig;
+    /**
+     * Whether `upload_attachment` may download a `fileUrl` from THIS process.
+     * True for the stdio package (the user's own machine); the hosted /mcp
+     * route sets it false — a server-side fetch of a caller-supplied URL is
+     * an SSRF primitive (security review of #538, H-1).
+     */
+    allowRemoteFetch?: boolean;
+}
+
 export class ApiClient {
-    private baseUrl: string;
+    readonly baseUrl: string;
     private getToken: () => Promise<string>;
     private retry: RetryConfig;
+    private userAgent: string;
+    private extraHeaders: Record<string, string>;
+    private tokenPath: string;
+    private allowRemoteFetch: boolean;
 
     constructor(
         baseUrl: string,
         getToken: () => Promise<string>,
-        retry: RetryConfig = { maxRetries: 2, baseDelayMs: 1000 }
+        options: ApiClientOptions | RetryConfig = {}
     ) {
+        // Back-compat: the third argument used to be the RetryConfig.
+        const opts: ApiClientOptions = 'maxRetries' in options ? { retry: options } : options;
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.getToken = getToken;
-        this.retry = retry;
+        this.retry = opts.retry ?? { maxRetries: 2, baseDelayMs: 1000 };
+        this.userAgent = opts.userAgent ?? '@getterdone/mcp-core';
+        this.extraHeaders = opts.extraHeaders ?? {};
+        this.tokenPath = opts.tokenPath ?? '/api/auth/agent/token';
+        this.allowRemoteFetch = opts.allowRemoteFetch ?? true;
+    }
+
+    /**
+     * Encode one path segment. Ids come from the model; a raw `../../auth/...`
+     * would otherwise re-route the (trusted, origin-locked) loopback hop of the
+     * hosted server to any route (security review of #538, M-1).
+     */
+    private seg(value: string): string {
+        return encodeURIComponent(value);
+    }
+
+    /** Unauthenticated text GET through the same base + hop headers (skill document). */
+    async getText(path: string): Promise<string> {
+        const res = await fetch(`${this.baseUrl}${path}`, {
+            headers: { ...this.extraHeaders, 'User-Agent': this.userAgent, Accept: 'text/markdown, text/plain;q=0.9, */*;q=0.1' },
+        });
+        if (!res.ok) throw { status: res.status, code: STATUS_TO_CODE[res.status] ?? 'unknown', message: `HTTP ${res.status}` } satisfies ApiError;
+        return res.text();
     }
 
     // ── Generic request ──────────────────────────────────
@@ -78,8 +159,9 @@ export class ApiClient {
 
         for (let attempt = 0; attempt <= this.retry.maxRetries; attempt++) {
             const headers: Record<string, string> = {
+                ...this.extraHeaders,
                 'Content-Type': 'application/json',
-                'User-Agent': '@getterdone/mcp-server',
+                'User-Agent': this.userAgent,
             };
 
             if (requireAuth) {
@@ -102,10 +184,19 @@ export class ApiClient {
             // status-derived fallback so specific codes (OPEN_TASK_LIMIT, …) survive.
             let errorMessage: string;
             let errorCode: string | undefined;
+            let onboardingUrl: string | undefined;
             try {
                 const errorJson = await res.json() as ApiResponse;
                 errorMessage = errorJson.error ?? `HTTP ${res.status}`;
                 errorCode = errorJson.code;
+                // Only the 402 NO_FUNDING_TOKEN envelope carries a next-step link, and
+                // only an http(s) URL is ever rendered into tool text.
+                if (res.status === 402 && errorJson.code === 'NO_FUNDING_TOKEN' && typeof errorJson.onboardingUrl === 'string') {
+                    try {
+                        const u = new URL(errorJson.onboardingUrl);
+                        if (u.protocol === 'https:' || u.protocol === 'http:') onboardingUrl = u.href;
+                    } catch { /* not a URL — drop it */ }
+                }
             } catch {
                 errorMessage = `HTTP ${res.status} ${res.statusText}`;
             }
@@ -114,6 +205,7 @@ export class ApiClient {
                 status: res.status,
                 code: errorCode ?? STATUS_TO_CODE[res.status] ?? 'unknown',
                 message: errorMessage,
+                ...(onboardingUrl ? { onboardingUrl } : {}),
             };
 
             // Retry on 500, and on 429 ONLY when it's a transient request-rate limit —
@@ -165,17 +257,20 @@ export class ApiClient {
         client_id: string;
         client_secret: string;
         grant_type: 'client_credentials';
+        /** RFC 8707 resource indicator — set to the /mcp URL for remote-mode tokens. */
+        resource?: string;
     }): Promise<{
         access_token: string;
         token_type: string;
         expires_in: number;
     }> {
         // Token endpoint returns a different shape (OAuth2), handle directly
-        const res = await fetch(`${this.baseUrl}/api/auth/agent/token`, {
+        const res = await fetch(`${this.baseUrl}${this.tokenPath}`, {
             method: 'POST',
             headers: {
+                ...this.extraHeaders,
                 'Content-Type': 'application/json',
-                'User-Agent': '@getterdone/mcp-server',
+                'User-Agent': this.userAgent,
             },
             body: JSON.stringify(body),
         });
@@ -200,23 +295,17 @@ export class ApiClient {
 
     // ── Tasks ────────────────────────────────────────────
 
-    async createTask(body: {
-        title: string;
-        description: string;
-        privateDescription?: string;
-        reward: number;
-        category?: string;
-        location: { lat: number; lng: number; label: string; remote?: boolean };
-        expiresInHours?: number;
-        tags?: string[];
-        reviewCriteria?: { keywords?: string[]; minImages?: number; minVideos?: number };
-        minTrustScore?: number;
-    }): Promise<unknown> {
-        const { expiresInHours, ...rest } = body;
-        const deadline = expiresInHours != null
-            ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
-            : undefined;
-        return this.request('POST', '/api/tasks', { ...rest, deadline });
+    async createTask(body: CreateTaskBody & { confirmationToken?: string }): Promise<unknown> {
+        return this.request('POST', '/api/tasks', toTaskRequest(body));
+    }
+
+    /**
+     * Price a task without creating it (CONNECT-01 §5 quote → confirm).
+     * Returns reward / platformFee / total / token status + a confirmationToken
+     * bound to these exact fields.
+     */
+    async quoteTask(body: CreateTaskBody): Promise<unknown> {
+        return this.request('POST', '/api/tasks/quote', toTaskRequest(body));
     }
 
     async listTasks(params: { status?: string; agentId?: string; q?: string; limit?: number } = {}): Promise<unknown> {
@@ -239,19 +328,19 @@ export class ApiClient {
     }
 
     async getTask(taskId: string): Promise<unknown> {
-        return this.request('GET', `/api/tasks/${taskId}`);
+        return this.request('GET', `/api/tasks/${this.seg(taskId)}`);
     }
 
     async approveTask(taskId: string): Promise<unknown> {
-        return this.request('POST', `/api/tasks/${taskId}/complete`);
+        return this.request('POST', `/api/tasks/${this.seg(taskId)}/complete`);
     }
 
     async disputeTask(taskId: string, reason: string): Promise<unknown> {
-        return this.request('POST', `/api/tasks/${taskId}/dispute`, { reason });
+        return this.request('POST', `/api/tasks/${this.seg(taskId)}/dispute`, { reason });
     }
 
     async cancelTask(taskId: string): Promise<unknown> {
-        return this.request('POST', `/api/tasks/${taskId}/cancel`);
+        return this.request('POST', `/api/tasks/${this.seg(taskId)}/cancel`);
     }
 
     // ── Account ──────────────────────────────────────────
@@ -271,7 +360,7 @@ export class ApiClient {
     // ── Ratings & Reputation ─────────────────────────────
 
     async rateWorker(taskId: string, score: number, comment?: string): Promise<unknown> {
-        return this.request('POST', `/api/tasks/${taskId}/rate`, { score, comment });
+        return this.request('POST', `/api/tasks/${this.seg(taskId)}/rate`, { score, comment });
     }
 
     async getReputation(agentId?: string): Promise<unknown> {
@@ -284,7 +373,7 @@ export class ApiClient {
                 message: 'agentId is required for reputation lookup',
             } satisfies ApiError;
         }
-        return this.request('GET', `/api/agents/${agentId}/reputation`, undefined, false);
+        return this.request('GET', `/api/agents/${this.seg(agentId)}/reputation`, undefined, false);
     }
 
     // ── Webhooks ─────────────────────────────────────────
@@ -330,7 +419,7 @@ export class ApiClient {
      * Returns: nickname, avatarSeed, rating, trustTier, completedTasks, recentRatings.
      */
     async getWorkerProfile(workerId: string): Promise<unknown> {
-        return this.request('GET', `/api/workers/${workerId}/profile`);
+        return this.request('GET', `/api/workers/${this.seg(workerId)}/profile`);
     }
 
     /**
@@ -350,7 +439,15 @@ export class ApiClient {
         let blob: Blob;
 
         if (source.type === 'url') {
-            // Fetch the file from the provided public URL
+            if (!this.allowRemoteFetch) {
+                throw {
+                    status: 400,
+                    code: 'bad_request',
+                    message: 'fileUrl is not supported on the hosted MCP endpoint (the server will not download caller-supplied URLs). Send the file as fileData (base64) with mimeType, or upload via POST /api/tasks/{id}/attachments.',
+                } satisfies ApiError;
+            }
+            // Fetch the file from the provided public URL (stdio package only —
+            // this runs on the user's own machine, not on our servers)
             let fileRes: Response;
             try {
                 fileRes = await fetch(source.url);
@@ -381,11 +478,12 @@ export class ApiClient {
         formData.append('file', blob, filename);
 
         const token = await this.getToken();
-        const res = await fetch(`${this.baseUrl}/api/tasks/${taskId}/attachments`, {
+        const res = await fetch(`${this.baseUrl}/api/tasks/${this.seg(taskId)}/attachments`, {
             method: 'POST',
             headers: {
+                ...this.extraHeaders,
                 Authorization: `Bearer ${token}`,
-                'User-Agent': '@getterdone/mcp-server',
+                'User-Agent': this.userAgent,
                 // Do NOT set Content-Type — let fetch set multipart boundary automatically
             },
             body: formData,
@@ -415,7 +513,7 @@ export class ApiClient {
      * Includes: balance, task breakdown, total spend, reputation, recent worker ratings.
      */
     async getAgentMetrics(agentId: string): Promise<unknown> {
-        return this.request('GET', `/api/agents/${agentId}/metrics`);
+        return this.request('GET', `/api/agents/${this.seg(agentId)}/metrics`);
     }
 }
 

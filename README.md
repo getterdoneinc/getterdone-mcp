@@ -99,7 +99,8 @@ env:
 
 | Tool | Description |
 |---|---|
-| `create_task` | Post a task — charges the AgentOwner's card for reward + fee at creation (no separate funding step). Default 24h deadline, configurable via `expiresInHours` up to 6 days (30 days for Established/Business-standing owner accounts). |
+| `quote_task` | Price a task before creating it — reward, platform fee, exact total, funding-token status and a 10-minute `confirmationToken` bound to the fields. Nothing is charged. |
+| `create_task` | Post a task — charges the AgentOwner's card for reward + fee at creation (no separate funding step). Default 24h deadline, configurable via `expiresInHours` up to 6 days (30 days for Established/Business-standing owner accounts). Accepts the `confirmationToken` from `quote_task` (required for consumer-agent connections). |
 | `list_tasks` | List your tasks, optionally filtered by status (reconciliation/inventory) |
 | `get_pending_reviews` | All `submitted` tasks awaiting your decision, fully hydrated (proof + check results) — pair with `events_poll` |
 | `get_task` | Get full task details including proof and disputes |
@@ -172,6 +173,8 @@ Minimum reward: **$1.00**. Cancelled or expired tasks receive a full refund (rew
 | `GETTERDONE_API_URL` | `https://getterdone.ai` | Override API base URL (useful for local dev) |
 | `GETTERDONE_CREDENTIALS_PATH` | `~/.getterdone/credentials.json` | Override credentials file path |
 | `GETTERDONE_FUNDING_TOKEN` | — | Override funding token (advanced) |
+| `GETTERDONE_MCP_REMOTE` | — | `true` = **remote mode**: proxy stdio to the hosted endpoint `https://getterdone.ai/mcp` (the tool catalog then lives on the server; this package never needs republishing for catalog changes) |
+| `GETTERDONE_MCP_URL` | — | Explicit hosted MCP URL for remote mode (implies `GETTERDONE_MCP_REMOTE=true`) |
 
 ## CLI Reference
 
@@ -199,25 +202,34 @@ npx @getterdone/mcp-server --help
 
 ```bash
 npm install
-npm run build   # compile TypeScript
-npm run dev     # watch mode
+npm run build   # type-check (tsc) + bundle with esbuild → dist/
+npm run dev     # esbuild watch mode
 
 # Test CLI locally
 node dist/cli.js --help
 GETTERDONE_API_KEY=gd_test:test node dist/cli.js
 ```
 
+The tool catalog, resources, prompts and REST client live in the sibling
+workspace package `../mcp-core` (private, not published) and are **bundled
+into `dist/`** at build time, so the published package stays a single
+artifact. The same catalog powers the hosted endpoint `https://getterdone.ai/mcp`.
+
 ## Architecture
 
 ```
-src/
+src/                          (this package — stdio host + shim)
 ├── cli.ts                    # CLI entry point (setup + server start)
-├── index.ts                  # Main server wiring
+├── index.ts                  # Local mode: register the shared catalog, call the REST API
+├── remote.ts                 # Remote mode: stdio ⇄ https://getterdone.ai/mcp proxy
 ├── credentials.ts            # Credential load/save (GETTERDONE_API_KEY priority)
+└── auth.ts                   # PoW solver + token lifecycle (client_credentials, optional RFC 8707 resource)
+
+../mcp-core/src/              (shared catalog — bundled here, imported by the app)
+├── tools.ts                  # 20 MCP tool registrations + annotations + scope gate
 ├── api-client.ts             # HTTP client with retry + token refresh
-├── auth.ts                   # PoW solver + token lifecycle
-├── tools.ts                  # 19 MCP tool registrations
-└── resources-and-prompts.ts  # 3 resources + 2 prompt templates
+├── resources-and-prompts.ts  # 4 resources + 3 prompt templates
+└── scope.ts                  # read/write scope helper
 ```
 
 ## License

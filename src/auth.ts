@@ -6,7 +6,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { ApiClient } from './api-client.js';
+import { ApiClient } from '@getterdone/mcp-core';
 import { saveCredentials, type Credentials } from './credentials.js';
 
 // ── PoW Solver ───────────────────────────────────────────
@@ -63,11 +63,13 @@ export class TokenManager {
     private currentToken: string | null = null;
     private expiresAt = 0; // unix ms
     private refreshBuffer = 10 * 60 * 1000; // refresh 10 min before expiry
+    private resource: string | undefined;
 
-    constructor(clientId: string, clientSecret: string, apiClient: ApiClient) {
+    constructor(clientId: string, clientSecret: string, apiClient: ApiClient, options: { resource?: string } = {}) {
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.apiClient = apiClient;
+        this.resource = options.resource;
     }
 
     /**
@@ -82,6 +84,8 @@ export class TokenManager {
             client_id: this.clientId,
             client_secret: this.clientSecret,
             grant_type: 'client_credentials',
+            // Remote mode: RFC 8707 resource indicator so /mcp accepts the bearer.
+            ...(this.resource ? { resource: this.resource } : {}),
         });
 
         this.currentToken = result.access_token;
