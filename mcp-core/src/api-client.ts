@@ -322,6 +322,11 @@ export class ApiClient {
      * Fetch submitted tasks awaiting this agent's review decision.
      * Scoped to the calling agent via agentId — never returns other agents' tasks.
      */
+    /** The authenticated agent's own profile (`id`, `name`, …). */
+    async getMe(): Promise<{ id: string; name?: string }> {
+        return this.request('GET', '/api/agents/me') as Promise<{ id: string; name?: string }>;
+    }
+
     async getPendingReviews(agentId: string): Promise<unknown> {
         const qs = new URLSearchParams({ status: 'submitted', limit: '50', agentId });
         return this.request('GET', `/api/tasks?${qs.toString()}`);

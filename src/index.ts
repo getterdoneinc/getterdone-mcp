@@ -84,6 +84,31 @@ export async function startServer(): Promise<void> {
     const api = new ApiClient(effective.apiUrl, getToken, { userAgent: USER_AGENT });
     if (creds) {
         tokenManager = new TokenManager(creds.clientId, creds.clientSecret, api);
+        // Env-var credentials (GETTERDONE_API_KEY / CLIENT_ID+SECRET) carry no
+        // agentId, and an empty id makes list_tasks / get_pending_reviews
+        // platform-wide (QA ISSUE-038). Resolve it once from the API; if the
+        // API is unreachable at startup the server still comes up and the
+        // tools report the error per call.
+        if (!effective.agentId) {
+            // Bounded: this runs before the stdio handshake, so a slow or
+            // half-open API must not stall the host's `initialize`.
+            const STARTUP_LOOKUP_MS = 5000;
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            try {
+                const me = await Promise.race([
+                    api.getMe(),
+                    new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`timed out after ${STARTUP_LOOKUP_MS} ms`)), STARTUP_LOOKUP_MS); }),
+                ]);
+                if (typeof me?.id !== 'string' || !me.id) throw new Error('unexpected /api/agents/me response (no id)');
+                effective.agentId = me.id;
+                if (!effective.agentName && typeof me.name === 'string') effective.agentName = me.name;
+            } catch (err) {
+                const reason = err instanceof Error ? err.message : typeof err === 'object' && err && 'message' in err ? String((err as { message: unknown }).message) : String(err);
+                console.error(`⚠️  Could not resolve the agent id at startup (${reason}); list_tasks / get_pending_reviews stay unscoped until restart.`);
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
+        }
     }
 
     registerTools(server, api, effective.agentId);

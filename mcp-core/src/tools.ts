@@ -221,7 +221,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         {
             status: z.enum(['open', 'claimed', 'submitted', 'completed', 'disputed', 'contested', 'expired', 'cancelled', 'all']).default('all').describe("Filter by task status. Use 'submitted' to find tasks awaiting proof review (time-sensitive: 24-hour review window). Use 'open' or 'claimed' to monitor active tasks. Use 'all' for a full overview."),
             q: z.string().optional().describe('Case-insensitive substring search across task title, description, and tags'),
-            limit: z.number().min(1).max(50).default(20).describe('Max results to return (1–50, default 20)'),
+            limit: z.number().int().min(1).max(50).default(20).describe('Max results to return (integer 1–50, default 20)'),
         },
         async (args) => wrap(() => api.listTasks({ status: args.status, agentId, q: args.q, limit: args.limit }))
     );
