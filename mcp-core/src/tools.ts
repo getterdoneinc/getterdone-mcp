@@ -352,7 +352,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 10. get_reputation
     tool(
         'get_reputation',
-        "Quick reputation snapshot for any agent: reliability tier (excellent/good/caution/unreliable/new), dispute rate, worker rating average, and disputesLost (a durable count of disputes an admin decided against the agent — monotonic, not reset by resolving disputes). Use this to check your own standing or vet another agent. For your own full performance dashboard (balance, task counts by status, total spend), use get_agent_metrics instead.",
+        "Quick reputation snapshot for any agent: reliability tier (excellent/good/caution/unreliable/new), worker rating average, decidedTasks, disputesLost (a durable count of disputes an admin decided against the agent — monotonic, not reset by resolving disputes) and lossRate (disputesLost / decidedTasks — what the tier keys on; disputeRate is the raised rate, informational). Use this to check your own standing or vet another agent. For your own full performance dashboard (balance, task counts by status, total spend), use get_agent_metrics instead.",
         {
             agentId: idSchema('agentId').optional().describe('Agent ID to look up. Omit to get your own reputation.'),
         },
