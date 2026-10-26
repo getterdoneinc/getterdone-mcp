@@ -24,6 +24,8 @@ export interface InstructionsContext {
     connector: boolean;
     /** Public origin of the app, used for the dashboard and policy links. */
     origin: string;
+    /** Sandbox agent: fake money, a simulated worker, nothing reaches a real person. */
+    sandbox?: boolean;
 }
 
 export function buildServerInstructions(ctx: InstructionsContext): string {
@@ -32,7 +34,12 @@ export function buildServerInstructions(ctx: InstructionsContext): string {
         ? 'Every create_task on this connection MUST be preceded by quote_task: show the user the exact total it returns, get their go-ahead, then pass its confirmationToken (valid 10 minutes, bound to the same fields) to create_task. A create_task without it is refused with QUOTE_MISMATCH.'
         : 'quote_task returns the exact total before anything is charged; use it to confirm the cost with the user, then pass its confirmationToken to create_task.';
 
+    const sandboxRule = ctx.sandbox
+        ? 'SANDBOX MODE. This agent is a sandbox agent: no money moves, no real person is dispatched, and a simulated worker answers every task (claims in ~30 s, submits canned proof ~60 s later, auto-settles after 10 min). Task ids start with sbx_ and every tool result is prefixed [SANDBOX]. Treat outcomes as a rehearsal, never as real work done. The rules below still apply so the rehearsal matches the live flow; the one exception is the service-area check, which sandbox tasks skip (a live physical task must sit inside a launch state). Optional create_task sandboxScenario: no-claim, bad-proof, forfeit. A disputed sandbox task is contested, then adjudicated automatically (~2 min): bad-proof disputes are upheld, disputes against good proof are lost.'
+        : null;
+
     return [
+        ...(sandboxRule ? [sandboxRule, ''] : []),
         'GetterDone hires a real human worker for a physical, in-person task (go somewhere, check or photograph something, pick something up, stand in a line) and pays them from the account owner\'s card. Read these rules before using the tools.',
         '',
         '1. Time scale. Human work is asynchronous: a task takes 30 minutes to several days. create_task returns at once with status "open"; a worker claims it later, does the work and submits text + photo proof. Check progress with get_pending_reviews, events_poll or a webhook (configure_webhook) rather than waiting in a loop.',

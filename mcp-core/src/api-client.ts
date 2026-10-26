@@ -70,6 +70,8 @@ export interface CreateTaskBody {
     tags?: string[];
     reviewCriteria?: { keywords?: string[]; minImages?: number; minVideos?: number };
     minTrustScore?: number;
+    /** Sandbox mode: simulated-worker scenario (sandbox agents only; ignored for live agents). */
+    sandboxScenario?: 'no-claim' | 'bad-proof' | 'forfeit';
 }
 
 /**
@@ -245,6 +247,8 @@ export class ApiClient {
         solution: string;
         timing: number;
         environment: string;
+        /** Sandbox mode: register a sandbox agent (fake money, simulated worker). */
+        sandbox?: boolean;
     }): Promise<{
         agent: { id: string; name: string };
         clientId: string;

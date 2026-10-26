@@ -9,7 +9,7 @@
  * Tools execute by calling the REST API through `ApiClient`, so business
  * logic, authorisation, caps and moderation run once, in the routes.
  */
-export { registerTools, TOOL_SCOPES, type ToolOptions } from './tools';
+export { registerTools, TOOL_SCOPES, SANDBOX_RESULT_PREFIX, SANDBOX_MONEY_NOTE, type ToolOptions } from './tools';
 export { registerResources, registerPrompts, type PromptContext } from './resources-and-prompts';
 export { buildServerInstructions, type InstructionsContext } from './instructions';
 export { ApiClient, type ApiError, type ApiResponse, type ApiClientOptions } from './api-client';

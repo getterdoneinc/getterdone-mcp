@@ -38,7 +38,18 @@ export interface ToolOptions {
      * (CONNECT-01 §5 — UX only, not a security control).
      */
     connector?: boolean;
+    /**
+     * Sandbox agent (Sandbox mode): every tool result is prefixed `[SANDBOX] `
+     * and quote_task / create_task say that no money moves and a simulated
+     * worker will respond. The host sets it from the agent document.
+     */
+    sandbox?: boolean;
 }
+
+/** Prefix every tool result carries for a sandbox agent. */
+export const SANDBOX_RESULT_PREFIX = '[SANDBOX] ';
+/** Appended to quote_task / create_task results for a sandbox agent. */
+export const SANDBOX_MONEY_NOTE = 'Sandbox mode: no money moves — the total is debited from a simulated day budget and a simulated worker will respond (claims in ~30 s, submits proof ~60 s later, auto-settles after 10 min).';
 
 /** Per-tool annotations — the catalog of record for read/write classes. */
 export const TOOL_SCOPES: Record<string, ToolAnnotations> = {
@@ -86,6 +97,19 @@ function error(err: unknown): ToolResult {
         content: [{ type: 'text', text: message }],
         isError: true,
     };
+}
+
+/**
+ * Sandbox mode: prefix every text block so a model (and the person reading
+ * the transcript) never mistakes a simulated outcome for a live one, and say
+ * on the two money tools that nothing is charged.
+ */
+function sandboxed(name: string, result: ToolResult): ToolResult {
+    const content = result.content.map((c) => ({ ...c, text: `${SANDBOX_RESULT_PREFIX}${c.text}` }));
+    if (!result.isError && (name === 'quote_task' || name === 'create_task')) {
+        content.push({ type: 'text', text: `${SANDBOX_RESULT_PREFIX}${SANDBOX_MONEY_NOTE}` });
+    }
+    return { ...result, content };
 }
 
 async function wrap(fn: () => Promise<unknown>): Promise<ToolResult> {
@@ -183,7 +207,8 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
                         message: `This connection was authorised with read-only access (scope: ${opts.scope ?? ''}). Reconnect with the tasks:write scope to use ${name}.`,
                     });
                 }
-                return cb(args);
+                const result = await cb(args);
+                return opts.sandbox ? sandboxed(name, result) : result;
             }) as never
         );
     }
@@ -207,10 +232,12 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
         {
             ...createTaskShape,
             confirmationToken: z.string().max(512).optional().describe('The confirmationToken returned by quote_task for these exact fields. Required for consumer-agent connections; optional otherwise.'),
+            sandboxScenario: z.enum(['no-claim', 'bad-proof', 'forfeit']).optional().describe("Sandbox agents only (ignored for live agents): how the simulated worker treats this task — 'no-claim' (never claimed, expires at the deadline), 'bad-proof' (proof fails the review criteria, so you can exercise dispute_task — the dispute is contested, then upheld automatically), 'forfeit' (the worker declines once, then re-claims). Disputing the default good proof rehearses a lost dispute (worker paid). Omit for the default claim → proof → auto-settle run."),
         },
         async (args) => wrap(() => api.createTask({
             ...buildCreateTaskBody(args),
             ...(args.confirmationToken ? { confirmationToken: args.confirmationToken } : {}),
+            ...(args.sandboxScenario ? { sandboxScenario: args.sandboxScenario } : {}),
         }))
     );
 

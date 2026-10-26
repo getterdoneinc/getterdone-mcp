@@ -114,6 +114,7 @@ export async function setupAgent(
     apiUrl: string,
     credentialsPath?: string,
     log: (msg: string) => void = console.error,
+    opts: { sandbox?: boolean } = {},
 ): Promise<SetupResult> {
     // Create an unauthenticated API client for registration
     const api = new ApiClient(apiUrl, async () => '');
@@ -139,6 +140,8 @@ export async function setupAgent(
             solution,
             timing: durationMs,
             environment: `node:${process.versions.node.split('.')[0]}`,
+            // Sandbox mode: fake money, a simulated worker, no KYC or card (refused where the environment has it off).
+            ...(opts.sandbox ? { sandbox: true } : {}),
         });
     } catch (err: unknown) {
         const apiErr = err as { status?: number; message?: string };

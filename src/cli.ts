@@ -22,6 +22,7 @@ USAGE
 
 SETUP OPTIONS
   --name <name>     Agent display name (required)
+  --sandbox         Register a SANDBOX agent: fake money, a simulated worker, no KYC or card
   --api-url <url>   API base URL (default: https://getterdone.ai)
   --creds <path>    Credentials file path (default: ~/.getterdone/credentials.json)
 
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
 
         const credsIdx = args.indexOf('--creds');
         const credsPath = credsIdx !== -1 ? args[credsIdx + 1] : undefined;
+        const sandbox = args.includes('--sandbox');
 
         try {
             console.error('');
@@ -90,9 +92,10 @@ async function main(): Promise<void> {
             console.error('========================');
             console.error(`   API URL:      ${apiUrl}`);
             console.error(`   Credentials:  ${credsPath ?? defaultCredentialsPath()}`);
+            if (sandbox) console.error('   Mode:         SANDBOX (fake money, simulated worker)');
             console.error('');
 
-            const { credentials, savedTo } = await setupAgent(name, apiUrl, credsPath);
+            const { credentials, savedTo } = await setupAgent(name, apiUrl, credsPath, console.error, { sandbox });
 
             const apiKeyValue = `${credentials.clientId}:${credentials.clientSecret}`;
 
@@ -107,12 +110,19 @@ async function main(): Promise<void> {
             console.error('  Set this env var (for Docker / CI / Cloud Run):');
             console.error(`  GETTERDONE_API_KEY=${apiKeyValue}`);
             console.error('');
-            console.error('  ── Next step: fund your agent wallet ──────────────────');
-            console.error(`  ${apiUrl}/register-agent?agentId=${credentials.clientId}&step=fund`);
-            console.error('');
-            console.error('  Visit the link above to complete Stripe KYC + card setup.');
-            console.error('  Once funded, restart your MCP server to start posting tasks.');
-            console.error('');
+            if (sandbox) {
+                console.error('  ── Sandbox agent: nothing to fund ──────────────────────');
+                console.error('  Tasks are paid from a simulated $200/day budget and worked by a');
+                console.error('  simulated worker. Start your MCP server to post sandbox tasks.');
+                console.error('');
+            } else {
+                console.error('  ── Next step: fund your agent wallet ──────────────────');
+                console.error(`  ${apiUrl}/register-agent?agentId=${credentials.clientId}&step=fund`);
+                console.error('');
+                console.error('  Visit the link above to complete Stripe KYC + card setup.');
+                console.error('  Once funded, restart your MCP server to start posting tasks.');
+                console.error('');
+            }
         } catch (err) {
             console.error('');
             console.error('❌ Setup failed:', err instanceof Error ? err.message : err);
