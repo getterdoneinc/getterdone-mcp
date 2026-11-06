@@ -263,6 +263,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             "  • proofOfWork       — worker's submitted text, image URLs, and video URLs",
             "  • criteriaCheckResult — automated syntactic check (passed, score 0–100, per-check details)",
             "  • imageAuthenticityResult — reverse-image-search result (clean / likely_stock / suspicious / skipped)",
+            "  • contentReview — the platform's content-policy review of the proof (clear / flagged / unreviewed; advisory, no categories)",
             "",
             "Proof media URLs are STABLE authenticated links (never expire, no signature): download with",
             "your API key as the Bearer header and follow the 302 redirect, e.g.",
@@ -283,7 +284,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
             "",
             "If a task shows checksPending: true, its media checks (reverse-image-search, duplicate,",
             "AI-provenance, capture time/location) are still running — wait ~5 seconds and call",
-            "get_task, or wait for the task.checks_completed event. Don't approve while",
+            "get_task, or wait for the task.checks_completed event (it also carries contentReview). Don't approve while",
             "checksPending is true.",
         ].join('\n'),
         {},
@@ -389,7 +390,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 11. configure_webhook
     tool(
         'configure_webhook',
-        'Register or update a webhook URL to receive real-time task event notifications (task.claimed, task.submitted, task.completed, task.declined, task.expired, task.refunded, task.expiring_soon, etc. — expiry emits task.expired; task.refunded covers cancel/dispute-refund/closure). Payloads carry an eventId shared with the events_poll inbox for dual-channel dedupe. IMPORTANT: the response includes a webhookSecret — store it immediately and securely. It is shown ONLY ONCE and cannot be retrieved again. Use the secret to verify HMAC-SHA256 signatures on incoming webhook payloads.',
+        'Register or update a webhook URL to receive real-time task event notifications (task.claimed, task.submitted, task.checks_completed, task.completed, task.declined, task.expired, task.refunded, task.expiring_soon, task.suspended, etc. — expiry emits task.expired; task.refunded covers cancel/dispute-refund/closure). Payloads carry an eventId shared with the events_poll inbox for dual-channel dedupe. IMPORTANT: the response includes a webhookSecret — store it immediately and securely. It is shown ONLY ONCE and cannot be retrieved again. Use the secret to verify HMAC-SHA256 signatures on incoming webhook payloads.',
         {
             url: z.string().url().refine(
                 (u) => u.startsWith('https://'),
@@ -402,7 +403,7 @@ export function registerTools(server: McpServer, api: ApiClient, agentId: string
     // 11b. events_poll — Agent Event Inbox (RFC-001)
     tool(
         'events_poll',
-        "Poll your durable event inbox — the no-webhook way to never miss a task event. Returns events (task.claimed, task.submitted, task.completed, task.disputed, task.contested, task.expiring_soon, …) in guaranteed per-agent order with a monotonic seq. Contract: call with no cursor to resume from your last ack (unacked events re-appear — deduplicate on the envelope id); process the batch; then call events_ack with the returned nextCursor. Events are THIN (type + task pointer + hints) — fetch fresh details with get_task. hasMore=true means poll again immediately. A 410 CURSOR_EXPIRED means your cursor predates the 30-day retention — resume from the oldestAvailableCursor it returns and treat the gap as missed events.",
+        "Poll your durable event inbox — the no-webhook way to never miss a task event. Returns events (task.claimed, task.submitted, task.checks_completed, task.completed, task.disputed, task.contested, task.expiring_soon, task.suspended, …) in guaranteed per-agent order with a monotonic seq. Contract: call with no cursor to resume from your last ack (unacked events re-appear — deduplicate on the envelope id); process the batch; then call events_ack with the returned nextCursor. Events are THIN (type + task pointer + hints) — fetch fresh details with get_task. hasMore=true means poll again immediately. A 410 CURSOR_EXPIRED means your cursor predates the 30-day retention — resume from the oldestAvailableCursor it returns and treat the gap as missed events.",
         {
             cursor: z.number().int().min(0).optional().describe('Resume after this seq. Omit to resume from your last acked cursor.'),
             limit: z.number().int().min(1).max(100).optional().describe('Max events to scan (default 50).'),

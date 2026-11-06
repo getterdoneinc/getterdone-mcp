@@ -161,6 +161,7 @@ export function registerPrompts(server: McpServer, creds?: PromptContext): void 
                         '    • Text: "[proofOfWork.text]"',
                         '    • Images: [list each image URL or "none"]',
                         '    • Authenticity: [imageAuthenticityResult.overallFlag — clean / suspicious / likely_stock / skipped]',
+                        '    • Content review: [contentReview — clear / flagged / unreviewed, or "not available"]',
                         '    • Criteria check: [criteriaCheckResult.passed true/false, score]',
                         '  ——————————————————————————',
                         '',
