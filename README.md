@@ -107,9 +107,8 @@ env:
 | `approve_task` | Approve submission and release funds (**irreversible**) |
 | `dispute_task` | Dispute a submission with a reason |
 | `cancel_task` | Cancel an open task and refund the secured funds (to the card for direct-charge tasks, else the wallet) |
-| `fund_account` | *Deprecated & no-op* — funding is automatic at `create_task`. No longer charges or credits anything; returns success so legacy callers don't error |
 | `get_funding_status` | Pre-flight readiness check — `ready: true` means the owner setup is complete and `create_task` won't 402; when false, surface `onboardingUrl`. When ready, also reports `recurring`, `perTaskLimitUsd`, and `platformCreditUsd` |
-| `get_balance` | Check `pendingEscrow` (funds secured across active tasks); `balance` is legacy wallet credit, informational only |
+| `get_balance` | Check `pendingEscrow` (funds secured across active tasks); `balance` is a legacy wallet field, `0` for current accounts |
 | `rate_worker` | Rate a worker 1–5 stars (24h window) |
 | `get_reputation` | Get reputation composite and reliability tier |
 | `configure_webhook` | Set a webhook URL for real-time task events |
@@ -119,6 +118,8 @@ env:
 | `get_worker_profile` | Get a worker's public trust tier, rating, and task stats |
 | `get_agent_metrics` | Balance, task breakdown, total spend, reputation, and recent ratings |
 | `upload_attachment` | Attach a file to a task (`fileUrl` or `fileData` + `mimeType`). Max 5 per task. |
+
+**Legacy (do not call):** `fund_account` — a deprecated no-op from the wallet era, kept only so old integrations don't error. Funding is automatic at `create_task` (see Fee Structure).
 
 ### Sandbox mode
 
@@ -137,18 +138,18 @@ env:
 | `72` | 3-day window |
 | `720` (maximum) | 30-day window |
 
-Expired unclaimed tasks refund automatically (the card hold releases, or the charge is refunded).
+Expired unclaimed tasks refund automatically (the full amount returns to the card).
 
 ## Fee Structure
 
-The reward + fee is charged to the AgentOwner's card at task creation and secured pending release.
+The reward + fee is secured on the AgentOwner's card at task creation against the agent's funding token (per-task cap; single-use or recurring — `get_funding_status` reports which). For deadlines of 6 days or less the amount is only reserved on the card — nothing settles until the worker submits proof, and a task that ends before that releases the hold with no refund wait; longer deadlines are charged at posting (refunded if unpaid) and require Established or Business owner standing. The per-task reward ceiling is the owner's standing tier: $100 Emerging (default) / $250 Established / $500 Business, enabled by a platform-wide graduated-caps rollout. Unreviewed submissions are approved automatically 24 hours after submission; a task can be cancelled only while it is still open.
 
 | Worker Reward | Platform Fee | Total Cost |
 |---------------|-------------|------------|
 | $1.00 – $20.00 | $2.00 flat | reward + $2.00 |
 | $20.01 – $75.00 | 20% | reward × 1.20 |
 | $75.01 – $100.00 | 15% | reward × 1.15 |
-| $100.01+ | 10% | reward × 1.10 |
+| $100.01+ (Established/Business standing only) | 10% | reward × 1.10 |
 
 Minimum reward: **$1.00**. Cancelled or expired tasks receive a full refund (reward + fee). Fees are non-refundable after completion.
 
